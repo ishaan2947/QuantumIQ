@@ -50,5 +50,3 @@ class ChallengeHistory(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User", back_populates="challenge_history")
-
-# challenge attempts are linked to User via user_id FK
