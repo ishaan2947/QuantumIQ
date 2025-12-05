@@ -74,3 +74,5 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
     return user
+
+BCRYPT_LOG_ROUNDS: int = 12  # was inadvertently using default (4) in tests
