@@ -115,3 +115,5 @@ async def get_shared_circuit(share_token: str, db: AsyncSession = Depends(get_db
     if not circuit:
         raise HTTPException(status_code=404, detail="Shared circuit not found")
     return CircuitResponse.model_validate(circuit)
+
+# share_token is a UUID4 string; None until the user clicks "Share"
