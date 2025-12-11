@@ -41,5 +41,3 @@ async def get_db() -> AsyncSession:
         except Exception:
             await session.rollback()
             raise
-
-# use NullPool for scripts/tests; AsyncAdaptedQueuePool for the server
