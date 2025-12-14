@@ -133,3 +133,5 @@ AGENT_TOOLS = [
         },
     },
 ]
+
+# search_quantum_docs grounds answers in static markdown; avoids hallucination
