@@ -165,5 +165,3 @@ async def run_agent(
         "suggested_circuit": suggested_circuit,
         "challenge": generated_challenge,
     }
-
-MAX_OODA_ITERATIONS = 8  # guard against models that loop on ambiguous state
