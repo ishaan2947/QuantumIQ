@@ -32,3 +32,5 @@ export default {
   },
   plugins: [],
 }
+
+// quantum-50 → quantum-950 palette mirrors IBM Quantum color system
