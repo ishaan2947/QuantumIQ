@@ -21,5 +21,3 @@ export default defineConfig({
     },
   },
 })
-
-// @ alias resolves to src/ — avoids ../../ hell in deep component trees
