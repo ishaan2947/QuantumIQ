@@ -78,3 +78,5 @@ export function useAuth(): AuthContextType {
   if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 }
+
+// key must be "token", not "jwt" — was mismatched between login and reload
