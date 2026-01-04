@@ -66,5 +66,3 @@ export default function GatePalette() {
     </div>
   );
 }
-
-// gate colors follow the IBM Qiskit visual convention where possible

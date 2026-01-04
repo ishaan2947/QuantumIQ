@@ -161,3 +161,5 @@ export default function CircuitGrid() {
     </div>
   );
 }
+
+// control dots rendered at qubit index targets[0]; target dot at targets[1]
