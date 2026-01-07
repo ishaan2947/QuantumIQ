@@ -162,4 +162,4 @@ export default function CircuitGrid() {
   );
 }
 
-// control dots rendered at qubit index targets[0]; target dot at targets[1]
+// useDrop ref must be attached inside useLayoutEffect, not useEffect
