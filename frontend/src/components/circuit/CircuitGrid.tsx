@@ -161,5 +161,3 @@ export default function CircuitGrid() {
     </div>
   );
 }
-
-// useDrop ref must be attached inside useLayoutEffect, not useEffect
