@@ -99,3 +99,5 @@ export default function SimulationControls() {
     </div>
   );
 }
+
+// stepInterval drives the autoplay; cleared on unmount to avoid memory leak
