@@ -197,3 +197,5 @@ export default function BlochSphere() {
     </div>
   );
 }
+
+// lerp factor 0.08 gives a smooth ~12-frame transition at 60 fps
