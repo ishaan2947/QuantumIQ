@@ -52,3 +52,5 @@ export default function Navbar() {
     </nav>
   );
 }
+
+// useLocation comparison uses pathname.startsWith for nested routes
