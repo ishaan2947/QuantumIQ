@@ -163,3 +163,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+// color thresholds: <40 red · 40-70 amber · ≥70 green — matches Qiskit Learn
