@@ -206,5 +206,3 @@ export default function ChatPanel() {
     </div>
   );
 }
-
-// tool_calls array is appended to the assistant message before rendering
