@@ -99,5 +99,3 @@ export default function SimulationControls() {
     </div>
   );
 }
-
-// share link is /share/:token — token is a UUID4 generated server-side
