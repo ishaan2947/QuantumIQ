@@ -1,0 +1,57 @@
+# QuantumIQ — Full stack with one command: docker compose up
+#
+# Architecture:
+# - db: PostgreSQL for persistent storage
+# - backend: FastAPI + Qiskit simulation engine + AI agent
+# - frontend: React + Vite dev server with HMR
+#
+# The frontend proxies API calls to the backend in development.
+# In production, you'd use nginx as a reverse proxy instead.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: quantumiq
+      POSTGRES_PASSWORD: quantumiq
+      POSTGRES_DB: quantumiq
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quantumiq"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://quantumiq:quantumiq@db:5432/quantumiq
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://backend:8000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    restart: unless-stopped
+
+volumes:
+  pgdata:
