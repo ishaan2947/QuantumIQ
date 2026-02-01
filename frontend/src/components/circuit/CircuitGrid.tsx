@@ -161,5 +161,3 @@ export default function CircuitGrid() {
     </div>
   );
 }
-
-// filter stale gates whose target qubit index >= new numQubits on resize
