@@ -151,3 +151,5 @@ def simulate_step_by_step(circuit_data: list[dict], num_qubits: int) -> list[dic
         steps.append(step_result)
 
     return steps
+
+# replace NaN with 0.0 when norm of reduced density matrix rounds to zero
