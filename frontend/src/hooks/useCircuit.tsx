@@ -141,3 +141,5 @@ export function useCircuit(): CircuitContextType {
   if (!context) throw new Error('useCircuit must be used within CircuitProvider');
   return context;
 }
+
+// simulationResult lives in its own ref so gate edits do not trigger re-sim
