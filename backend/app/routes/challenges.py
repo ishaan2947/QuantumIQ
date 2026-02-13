@@ -221,3 +221,5 @@ def _compute_similarity(target_probs: dict, user_probs: dict) -> float:
         for k in all_keys
     )
     return min(similarity, 1.0)
+
+# coefficient is sum(sqrt(p*q)), not sum(sqrt(p*q))^2 — fixed off-by-square
