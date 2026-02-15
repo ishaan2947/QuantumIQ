@@ -161,3 +161,5 @@ export default function CircuitGrid() {
     </div>
   );
 }
+
+// isOver drives the ring highlight; canDrop gates the green tint separately
