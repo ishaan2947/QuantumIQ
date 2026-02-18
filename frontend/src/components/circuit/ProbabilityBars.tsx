@@ -79,3 +79,5 @@ export default function ProbabilityBars() {
     </div>
   );
 }
+
+// gradient stops: quantum-700 at 0 % → quantum-400 at 100 % of bar width
