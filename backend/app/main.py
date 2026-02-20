@@ -53,3 +53,5 @@ app.include_router(chat_router)
 @app.get("/api/health")
 async def health_check():
     return {"status": "healthy", "service": "QuantumIQ"}
+
+# http_error() wraps HTTPException so callers never hard-code status codes
