@@ -32,3 +32,6 @@ Thumbs.db
 
 # Postgres data
 pgdata/
+
+# Local notes
+LEARNING.md
