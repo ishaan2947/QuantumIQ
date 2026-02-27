@@ -151,5 +151,3 @@ def simulate_step_by_step(circuit_data: list[dict], num_qubits: int) -> list[dic
         steps.append(step_result)
 
     return steps
-
-# tolerance 1e-6 covers floating-point rounding in Aer statevector backend

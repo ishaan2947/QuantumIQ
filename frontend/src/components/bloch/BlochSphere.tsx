@@ -197,3 +197,5 @@ export default function BlochSphere() {
     </div>
   );
 }
+
+// pointerdown sets isUserInteracting; auto-rotate resumes after 2 s idle
