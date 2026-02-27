@@ -1,99 +1,155 @@
 # QuantumIQ
 
-An agentic AI-powered quantum computing learning platform that autonomously tracks user progress, builds personalized curricula, and guides users through interactive circuit simulation in real time.
+An agentic AI quantum computing learning platform. The AI tutor autonomously reads your circuit, tracks your progress in PostgreSQL, and rewrites your curriculum in real time — it's not a chatbot, it's an agent running an observe-decide-act loop on every message.
 
-## What Makes This Agentic
+**Stack:** FastAPI · Qiskit · GPT-4o · PostgreSQL · React · TypeScript · Three.js · Docker
 
-This is **not** a chatbot with a circuit builder bolted on. The AI tutor is a genuine autonomous agent that:
+---
 
-- **Observes** your circuit state in real time via `get_user_circuit()`
-- **Analyzes** your learning gaps by reading `get_user_progress()` from PostgreSQL
-- **Decides** what you should learn next and generates personalized challenges
-- **Acts** on the system by writing back to the database via `update_learning_plan()`
-- **Loops** through observe-decide-act cycles autonomously using OpenAI tool calling
+## Screenshots
 
-The agent makes autonomous decisions about your curriculum without being asked — it identifies weak areas, assigns challenges, and adjusts your learning plan after every interaction.
+> Add screenshots to `docs/screenshots/` after running locally. Suggested captures:
+
+| Lab (Circuit Builder + Bloch Sphere) | AI Tutor Chat | Challenges |
+|--------------------------------------|---------------|------------|
+| ![Lab](docs/screenshots/lab.png) | ![Chat](docs/screenshots/chat.png) | ![Challenges](docs/screenshots/challenges.png) |
+
+---
+
+## How It Works
+
+### The Agentic Loop
+
+Most "AI-powered" apps are just a chat box that calls an LLM. QuantumIQ's tutor is a genuine agent: it runs an **OODA loop** (Observe → Orient → Decide → Act) with OpenAI function calling before every response.
+
+```
+User sends message
+       │
+       ▼
+┌─────────────────────────────────────────┐
+│            Agent Loop (max 8 iter)       │
+│                                          │
+│  1. OBSERVE  ──► get_user_circuit()      │  reads live circuit state from session
+│                  get_user_progress()     │  reads mastery levels from PostgreSQL
+│                                          │
+│  2. ORIENT   ──► GPT-4o analyzes:        │  identifies weak areas, errors,
+│                  • current topic          │  progress gaps
+│                  • mastery levels         │
+│                  • circuit mistakes       │
+│                                          │
+│  3. DECIDE   ──► GPT-4o chooses action:  │
+│                  • teach a concept        │
+│                  • generate a challenge   │  generate_challenge()
+│                  • search the docs        │  search_quantum_docs()
+│                  • advance the plan       │  update_learning_plan()
+│                                          │
+│  4. ACT      ──► writes back to DB       │  persistent curriculum state
+│                                          │
+│  ◄─────── loop until finish_reason=stop ─┘
+│
+└─────────────────────────────────────────┘
+       │
+       ▼
+   Final response (grounded in real user state)
+```
+
+The key difference from prompt-stuffing: the agent **requests only what it needs** when it needs it, and **writes back** to the system. It remembers what it taught you last session because it persists to PostgreSQL, not just context.
+
+### Quantum Simulation Pipeline
+
+```
+User drops gates onto circuit
+          │
+          ▼
+  GateOperation[] ──► Qiskit QuantumCircuit
+                            │
+                    transpile + Aer StatevectorSimulator
+                            │
+              ┌─────────────┴──────────────┐
+              │                            │
+     partial_trace(ρ, qubit)         measurement sampling
+              │                       (shots=1024)
+              │                            │
+     Pauli decomposition            probability dict
+     ⟨X⟩ = Tr(ρ·X)                  {'00': 0.5, '11': 0.5}
+     ⟨Y⟩ = Tr(ρ·Y)                            │
+     ⟨Z⟩ = Tr(ρ·Z)                   ProbabilityBars.tsx
+              │
+     BlochSphere.tsx
+     (lerp-animated Three.js)
+```
+
+Step-through mode re-runs this pipeline after each gate, so you can watch the Bloch sphere rotate in real time as gates are applied.
+
+---
 
 ## Tech Stack
 
-| Layer | Technology | Why |
-|-------|-----------|-----|
-| Backend | FastAPI (Python) | Async-native, auto-generated docs, Pydantic validation |
-| Simulation | Qiskit + Aer | IBM's production quantum SDK — verified gate math |
-| AI Agent | OpenAI GPT-4o + Function Calling | True tool use, not prompt stuffing |
-| Database | PostgreSQL | JSONB for circuits, relational for progress tracking |
-| Frontend | React + TypeScript + Vite | Type safety, fast HMR, component architecture |
-| 3D Viz | Three.js (@react-three/fiber) | WebGL Bloch sphere with smooth animation |
-| Auth | JWT (python-jose + bcrypt) | Stateless, horizontally scalable |
-| Deployment | Docker Compose | Full stack in one command |
+| Layer | Tech | Notes |
+|-------|------|-------|
+| Backend | FastAPI + Python | Async-native, Pydantic validation, auto docs at `/docs` |
+| Quantum | Qiskit 2.x + Aer | Statevector simulation, density matrix, Bloch coords |
+| AI Agent | GPT-4o + function calling | 6-tool OODA loop, conversation history, 8-iter max |
+| Database | PostgreSQL + asyncpg | JSONB circuits, relational progress/mastery tracking |
+| Auth | JWT + bcrypt | Stateless, `python-jose`, secure password hashing |
+| Frontend | React 18 + TypeScript + Vite | react-dnd circuit builder, react-markdown chat |
+| 3D Viz | Three.js + @react-three/fiber | Bloch sphere with `useFrame` lerp animation |
+| Styling | Tailwind CSS | Dark quantum theme, custom color palette |
+| Deployment | Docker Compose | One-command full-stack startup |
+
+---
 
 ## Quick Start
 
+**Prerequisites:** Docker Desktop, an OpenAI API key
+
 ```bash
-# Clone and configure
 git clone https://github.com/ishaan2947/QuantumIQ.git
 cd QuantumIQ
+
+# Configure environment
 cp backend/.env.example backend/.env
-# Edit backend/.env — add your OPENAI_API_KEY
+# Open backend/.env and set OPENAI_API_KEY=sk-...
 
-# Run everything
+# Start everything
 docker compose up --build
-
-# Frontend: http://localhost:5173
-# Backend API: http://localhost:8000/docs
 ```
 
-## Architecture
+| Service | URL |
+|---------|-----|
+| App | http://localhost:5173 |
+| API docs | http://localhost:8000/docs |
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    React Frontend                        │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────┐ │
-│  │ Circuit   │  │  Bloch   │  │Probability│  │  Chat  │ │
-│  │ Builder   │  │  Sphere  │  │   Bars    │  │ Panel  │ │
-│  │(react-dnd)│  │(Three.js)│  │           │  │        │ │
-│  └──────────┘  └──────────┘  └──────────┘  └────────┘ │
-└──────────────────────┬──────────────────────────────────┘
-                       │ REST API
-┌──────────────────────┴──────────────────────────────────┐
-│                   FastAPI Backend                         │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────────────┐  │
-│  │  Auth    │  │Simulation│  │    Agentic AI Tutor   │  │
-│  │  (JWT)   │  │ (Qiskit) │  │  ┌─────────────────┐ │  │
-│  └──────────┘  └──────────┘  │  │   Agent Loop     │ │  │
-│                               │  │  (OODA pattern)  │ │  │
-│                               │  ├─────────────────┤ │  │
-│                               │  │ Tools:           │ │  │
-│                               │  │ • get_circuit()  │ │  │
-│                               │  │ • get_progress() │ │  │
-│                               │  │ • gen_challenge()│ │  │
-│                               │  │ • search_docs()  │ │  │
-│                               │  │ • update_plan()  │ │  │
-│                               │  └─────────────────┘ │  │
-│                               └──────────────────────┘  │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-         ┌─────────────┴─────────────┐
-         │       PostgreSQL          │
-         │  • users                  │
-         │  • circuits (JSONB)       │
-         │  • user_progress          │
-         │  • learning_plans         │
-         │  • challenge_history      │
-         └───────────────────────────┘
-```
+---
 
-## Core Features
+## Features
 
-- **Drag-and-drop circuit builder** — H, X, Y, Z, CNOT, Toffoli gates
-- **Real-time simulation** — Qiskit statevector + measurement sampling
-- **3D Bloch sphere** — Animated with smooth interpolation using Three.js
-- **Step-through mode** — Gate-by-gate animation with live state updates
-- **Agentic AI tutor** — Autonomous learning agent with persistent memory
-- **Adaptive challenges** — Bell state, teleportation, Grover's, Deutsch-Jozsa
-- **Progress tracking** — Per-concept mastery levels, error rates, practice counts
-- **Shareable circuits** — UUID-based token links
-- **Personalized curriculum** — Agent-managed learning plan that evolves over time
+**Circuit Builder**
+- Drag-and-drop gate palette: H, X, Y, Z, S, T, CNOT, Toffoli
+- Multi-qubit circuit diagram with labeled wires
+- Step-through animation — watch state evolve gate by gate
+- Save and share circuits via UUID token links
+
+**Quantum Visualization**
+- Animated 3D Bloch sphere (Three.js) with lerp-smoothed transitions
+- Live probability bar chart updating after each simulation
+- Statevector displayed in both complex amplitude and basis notation
+
+**Agentic AI Tutor**
+- Circuit-aware: reads your gates before every response
+- Persistent learning state: mastery levels stored per concept in PostgreSQL
+- Generates personalized challenges targeting your weakest areas
+- Updates your curriculum autonomously — no manual configuration
+- Conversation history preserved across messages within a session
+- Tool call transparency: the UI shows which tools the agent invoked
+
+**Challenges**
+- 6 preset circuits: Bell state, GHZ, Quantum Teleportation, Deutsch-Jozsa, Phase Flip, Grover's 2-qubit
+- Agent-generated challenges based on individual weak areas
+- Scoring via Bhattacharyya coefficient (probability distribution similarity)
+- Full attempt history tracked per user
+
+---
 
 ## Project Structure
 
@@ -101,32 +157,57 @@ docker compose up --build
 QuantumIQ/
 ├── backend/
 │   ├── app/
-│   │   ├── agent/          # Agentic AI system
-│   │   │   ├── agent.py    # Agent loop (OODA pattern)
-│   │   │   ├── executor.py # Tool implementations
-│   │   │   └── tools.py    # OpenAI function schemas
-│   │   ├── core/           # Config, DB, security
-│   │   ├── models/         # SQLAlchemy models + Pydantic schemas
-│   │   ├── routes/         # API endpoints
-│   │   └── services/       # Qiskit simulation engine
+│   │   ├── agent/              # Agentic AI system
+│   │   │   ├── agent.py        # OODA loop, GPT-4o orchestration
+│   │   │   ├── executor.py     # Tool implementations (DB reads/writes)
+│   │   │   └── tools.py        # OpenAI function calling schemas
+│   │   ├── core/
+│   │   │   ├── config.py       # Pydantic settings, env loading
+│   │   │   ├── database.py     # Async SQLAlchemy engine + session
+│   │   │   └── security.py     # JWT creation/validation, bcrypt hashing
+│   │   ├── models/
+│   │   │   ├── schemas.py      # Pydantic request/response models
+│   │   │   └── *.py            # SQLAlchemy ORM models
+│   │   ├── routes/             # FastAPI routers (auth, circuits, sim, chat...)
+│   │   └── services/
+│   │       └── quantum_simulator.py   # Qiskit integration
+│   ├── .env.example
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── frontend/
-│   ├── src/
-│   │   ├── components/     # React components
-│   │   │   ├── bloch/      # Three.js Bloch sphere
-│   │   │   ├── circuit/    # Circuit builder + controls
-│   │   │   ├── chat/       # AI chat panel
-│   │   │   └── ui/         # Shared UI components
-│   │   ├── hooks/          # Auth + circuit state management
-│   │   ├── pages/          # Route pages
-│   │   ├── services/       # API client
-│   │   └── types/          # TypeScript type definitions
-│   ├── Dockerfile
-│   └── package.json
+│   └── src/
+│       ├── components/
+│       │   ├── bloch/          # Three.js Bloch sphere
+│       │   ├── circuit/        # Drag-and-drop builder, controls, charts
+│       │   ├── chat/           # AI chat panel with markdown rendering
+│       │   └── ui/             # Navbar
+│       ├── hooks/              # useAuth, useCircuit (context + state)
+│       ├── pages/              # Dashboard, Lab, Challenges, Login, Register
+│       ├── services/api.ts     # Axios client with JWT interceptor
+│       └── types/index.ts      # Shared TypeScript types + gate catalog
 ├── docker-compose.yml
-└── LEARNING.md             # Deep-dive architecture & interview prep
+└── README.md
 ```
+
+---
+
+## API Overview
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/auth/register` | Create account, returns JWT |
+| `POST` | `/api/auth/login` | Login, returns JWT |
+| `POST` | `/api/simulate/` | Run circuit through Qiskit, return probs + Bloch |
+| `POST` | `/api/simulate/step` | Step-through simulation (one state per gate) |
+| `POST` | `/api/chat/` | Send message to agentic AI tutor |
+| `GET` | `/api/challenges/presets` | List preset challenges |
+| `POST` | `/api/challenges/submit` | Submit attempt, get scored result |
+| `GET` | `/api/progress/` | Get per-concept mastery levels |
+| `GET` | `/api/progress/plan` | Get current personalized learning plan |
+
+Full interactive docs at `http://localhost:8000/docs` (Swagger UI auto-generated by FastAPI).
+
+---
 
 ## License
 
