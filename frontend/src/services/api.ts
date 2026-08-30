@@ -19,7 +19,10 @@ import type {
   ChallengeHistory,
 } from '../types';
 
-const API_BASE = '/api';
+// Relative in dev (Vite proxies /api to the backend); absolute in production,
+// where the Vercel-hosted frontend and the Render-hosted API are separate
+// origins. See src/config/env.ts.
+import { API_BASE } from '../config/env';
 
 class ApiService {
   private client: AxiosInstance;
