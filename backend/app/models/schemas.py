@@ -177,3 +177,40 @@ class ChallengeResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ─── Public demo ─────────────────────────────────────────────────────────────
+# These mirror the authenticated chat schemas but stay deliberately separate:
+# the demo has a different (much smaller) contract and no user record behind
+# it, and coupling them would make it easy to accidentally widen the demo's
+# surface area when the real chat API grows.
+
+class DemoTurn(BaseModel):
+    """One prior turn of demo conversation, echoed back by the client."""
+    role: str  # "user" | "assistant"
+    content: str
+
+
+class DemoChatRequest(BaseModel):
+    message: str
+    # Generated client-side. Forgeable by design — see rate_limit.SessionCounter.
+    session_id: str
+    circuit_data: Optional[list[GateOperation]] = None
+    num_qubits: Optional[int] = None
+    history: Optional[list[DemoTurn]] = None
+
+
+class DemoChatResponse(BaseModel):
+    response: str
+    messages_used: int
+    messages_remaining: int
+    limit: int
+
+
+class DemoStatusResponse(BaseModel):
+    """Lets a returning visitor's browser re-sync its counter after a reload."""
+    enabled: bool
+    messages_used: int
+    messages_remaining: int
+    limit: int
+    repo_url: str
