@@ -6,12 +6,56 @@ failing at runtime when a missing key is first accessed. This catches
 misconfiguration immediately rather than mid-request.
 """
 
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
 
+# Query parameters that libpq understands but asyncpg does not. Render and most
+# managed Postgres providers append sslmode to their connection strings; passing
+# it through to asyncpg raises "connect() got an unexpected keyword argument".
+_LIBPQ_ONLY_PARAMS = {"sslmode", "channel_binding", "target_session_attrs"}
+
+
+def normalize_async_database_url(url: str) -> str:
+    """
+    Coerce a Postgres URL into the async driver form SQLAlchemy needs.
+
+    Managed providers hand out `postgres://` or `postgresql://` URLs, which
+    SQLAlchemy resolves to psycopg2 — a sync driver that create_async_engine
+    rejects outright at import time. Rewriting the scheme here means the
+    DATABASE_URL from Render's blueprint works untouched, rather than requiring
+    everyone who deploys this to hand-edit the value into `postgresql+asyncpg`.
+
+    Also drops libpq-only query parameters that asyncpg would choke on.
+    """
+    if not url:
+        return url
+
+    parts = urlsplit(url)
+
+    # `postgres://` is the legacy alias some providers still emit.
+    if parts.scheme in ("postgres", "postgresql"):
+        parts = parts._replace(scheme="postgresql+asyncpg")
+    elif not parts.scheme.startswith("postgresql+"):
+        # Not Postgres (sqlite, for instance) — leave it entirely alone.
+        return url
+
+    kept = [(k, v) for k, v in parse_qsl(parts.query) if k not in _LIBPQ_ONLY_PARAMS]
+    parts = parts._replace(query=urlencode(kept))
+
+    return urlunsplit(parts)
+
+
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://quantumiq:quantumiq@db:5432/quantumiq"
+
+    @field_validator("database_url")
+    @classmethod
+    def _use_async_driver(cls, value: str) -> str:
+        return normalize_async_database_url(value)
     secret_key: str = "dev-secret-key-change-in-production"
     openai_api_key: str = ""
     algorithm: str = "HS256"
