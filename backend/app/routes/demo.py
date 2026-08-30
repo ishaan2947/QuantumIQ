@@ -35,6 +35,7 @@ from app.models.schemas import (
     DemoChatResponse,
     DemoStatusResponse,
 )
+from app.services.quantum_simulator import simulate_circuit
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -72,10 +73,17 @@ DEMO_SYSTEM_PROMPT = """You are QuantumIQ - a sharp, friendly quantum computing 
 RULES:
 1. Be CONCISE. Two short paragraphs maximum. The chat window is small.
 2. Be CONCRETE. If the visitor has gates on the circuit, explain using THEIR circuit.
-3. Use ket notation naturally: |0>, |1>, |+>, |->. Use Unicode for math (pi/2, sqrt 2) - never LaTeX.
-4. Use **bold** for key terms and `code` for gate names.
-5. End with a short, specific suggestion of what to try next on the circuit.
-6. If asked something off-topic, redirect to quantum computing in one friendly line.
+3. The next system message gives you the circuit's EXACT simulated probabilities
+   and Bloch coordinates. These are ground truth, computed by Qiskit, not an
+   estimate. Read the numbers and report them - do not derive, recompute, or
+   guess the resulting state from the gate list yourself, and do not "simplify"
+   a probability you were given. If your own reasoning about what a gate
+   sequence should produce conflicts with the numbers you were handed, the
+   numbers are correct and your reasoning is not.
+4. Use ket notation naturally: |0>, |1>, |+>, |->. Use Unicode for math (pi/2, sqrt 2) - never LaTeX.
+5. Use **bold** for key terms and `code` for gate names.
+6. End with a short, specific suggestion of what to try next on the circuit.
+7. If asked something off-topic, redirect to quantum computing in one friendly line.
 
 You are a preview of the full tutor. The full version tracks the learner's
 progress across sessions, generates personalised challenges, and uses tools to
@@ -84,26 +92,55 @@ inspect their circuit - mention that only if the visitor asks what else it does.
 
 def _describe_circuit(req: DemoChatRequest) -> str:
     """
-    Compact, token-cheap description of what's on the visitor's canvas.
+    Description of the visitor's circuit, grounded in an actual simulation
+    rather than left for the model to work out.
 
-    A structured JSON dump would cost more tokens and read worse to the model
-    than one plain-English line, and the demo circuit is at most a handful of
-    gates, so a sentence is enough.
+    Earlier this only listed the gates and let gpt-4o-mini infer the
+    resulting state from them — which it does unreliably. Asked about a Bell
+    state (H then CX), it has confidently answered "|00> + |01>" (not
+    entangled) instead of the correct |00> + |11>. The circuit is small
+    enough (<=4 qubits, <=12 gates, per DEMO_MAX_*) that actually running it
+    through the same Qiskit path the authenticated Lab uses costs
+    microseconds, so there's no reason to let the model guess.
+
+    Falls back to a bare gate list if simulation fails for any reason (a
+    malformed request that slipped past validation, say) — a slightly less
+    grounded answer beats a broken demo.
     """
     num = req.num_qubits or 2
 
     if not req.circuit_data:
         return f"The visitor's circuit is empty ({num} qubits, all in |0>)."
 
-    parts = []
-    for gate in req.circuit_data[:20]:
-        targets = ", ".join(f"q{t}" for t in gate.targets)
-        parts.append(f"{gate.gate.upper()}({targets})")
+    gate_list = " -> ".join(
+        f"{gate.gate.upper()}({', '.join(f'q{t}' for t in gate.targets)})"
+        for gate in req.circuit_data[:20]
+    )
+
+    try:
+        result = simulate_circuit(
+            [g.model_dump() for g in req.circuit_data], num, shots=256
+        )
+    except Exception:
+        logger.warning("Demo circuit description: simulation failed, falling back to gate list")
+        return f"The visitor's circuit has {num} qubits and these gates in order: {gate_list}."
+
+    # Sorted descending so the dominant outcome — usually what a learner is
+    # asking about — comes first rather than in bitstring order.
+    probs = sorted(result["probabilities"].items(), key=lambda kv: -kv[1])
+    prob_text = ", ".join(f"|{state}>: {p:.0%}" for state, p in probs if p > 0.005)
+
+    bloch_text = ", ".join(
+        f"q{c['qubit']} is at ({c['x']:.2f}, {c['y']:.2f}, {c['z']:.2f})"
+        + (" — inside the sphere, so entangled" if (c["x"] ** 2 + c["y"] ** 2 + c["z"] ** 2) < 0.9 else "")
+        for c in result["bloch_coords"]
+    )
 
     return (
-        f"The visitor's circuit has {num} qubits and these gates in order: "
-        + " -> ".join(parts)
-        + "."
+        f"The visitor's circuit has {num} qubits. Gates in order: {gate_list}.\n"
+        f"The exact final measurement probabilities (already simulated, do not "
+        f"recompute or second-guess these): {prob_text}.\n"
+        f"Bloch coordinates per qubit: {bloch_text}."
     )
 
 

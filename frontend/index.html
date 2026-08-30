@@ -11,17 +11,30 @@
     />
     <meta name="theme-color" content="#0a0a1a" />
 
-    <!-- Open Graph, for when the project is shared -->
+    <!--
+      Open Graph, for when the project is shared — LinkedIn, Slack, iMessage.
+      og:image and og:url must be absolute: most crawlers (LinkedIn's
+      included) will not resolve a relative path against the page's own
+      domain and just fail to render a preview, silently.
+    -->
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://quantumiq-lab.vercel.app/" />
+    <meta property="og:site_name" content="QuantumIQ" />
     <meta property="og:title" content="QuantumIQ — Learn Quantum Computing" />
     <meta
       property="og:description"
       content="An interactive AI tutor and live quantum circuit simulator. Try the demo — no signup required."
     />
-    <meta property="og:image" content="/og-cover.jpg" />
+    <meta property="og:image" content="https://quantumiq-lab.vercel.app/og-cover.jpg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="QuantumIQ — Learn Quantum Computing" />
+    <meta
+      name="twitter:description"
+      content="An interactive AI tutor and live quantum circuit simulator. Try the demo — no signup required."
+    />
+    <meta name="twitter:image" content="https://quantumiq-lab.vercel.app/og-cover.jpg" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
