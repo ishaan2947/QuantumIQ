@@ -14,6 +14,17 @@ body {
   min-height: 100vh;
 }
 
+/* Anchor scrolling from the hero CTA should clear the sticky landing nav. */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 /* Custom scrollbar for the quantum aesthetic */
 ::-webkit-scrollbar {
   width: 6px;
@@ -42,9 +53,74 @@ body {
   box-shadow: 0 0 15px rgba(92, 124, 250, 0.4);
 }
 
-/* Smooth transitions for everything */
+/*
+ * Smooth transitions for everything.
+ *
+ * Note the omission of `opacity`: Framer Motion animates opacity by writing
+ * inline styles every frame, and a competing CSS transition on the same
+ * property smears those writes into a laggy double-animation. Components that
+ * want an opacity transition should ask for one explicitly.
+ */
 * {
-  transition-property: background-color, border-color, box-shadow, opacity;
+  transition-property: background-color, border-color, box-shadow;
   transition-duration: 150ms;
   transition-timing-function: ease;
+}
+
+/* ─── Landing page ───────────────────────────────────────────────────────── */
+
+/*
+ * Gradient text used for the wordmark and section accents. Set as a component
+ * class rather than repeating six Tailwind utilities at every call site.
+ */
+.text-gradient-quantum {
+  background-image: linear-gradient(100deg, #a5f3fc 0%, #67e8f9 35%, #748ffc 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/*
+ * Faint engineering grid behind the feature and demo sections. Two 1px
+ * gradients tiled at 64px — cheaper than a background image and it scales
+ * to any viewport without an asset request.
+ */
+.bg-lab-grid {
+  background-image:
+    linear-gradient(rgba(92, 124, 250, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(92, 124, 250, 0.055) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+/*
+ * 1px gradient hairline along the top edge of a card, brightest in the
+ * middle. Gives interactive surfaces a lit edge without a real border.
+ */
+.edge-highlight::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(103, 232, 249, 0.55),
+    transparent
+  );
+  opacity: 0;
+  transition: opacity 300ms ease;
+  pointer-events: none;
+}
+
+.edge-highlight:hover::before,
+.edge-highlight:focus-within::before {
+  opacity: 1;
+}
+
+/* Keeps parallax layers on their own compositor layer so pointer movement
+   never triggers paint of the hero photograph. */
+.parallax-layer {
+  will-change: transform;
+  backface-visibility: hidden;
 }

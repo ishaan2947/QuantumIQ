@@ -5,9 +5,32 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>QuantumIQ — Learn Quantum Computing</title>
+    <meta
+      name="description"
+      content="Learn quantum computing through an interactive AI tutor and live circuit simulator. Build circuits, watch the Bloch sphere, and ask a circuit-aware tutor what just happened."
+    />
+    <meta name="theme-color" content="#0a0a1a" />
+
+    <!-- Open Graph, for when the project is shared -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="QuantumIQ — Learn Quantum Computing" />
+    <meta
+      property="og:description"
+      content="An interactive AI tutor and live quantum circuit simulator. Try the demo — no signup required."
+    />
+    <meta property="og:image" content="/quant.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+    <!--
+      The hero photograph is the page's largest contentful paint. Preloading it
+      alongside the JS bundle means it starts downloading immediately rather
+      than waiting for React to mount and render the <img>.
+    -->
+    <link rel="preload" as="image" href="/quant.jpg" fetchpriority="high" />
   </head>
   <body>
     <div id="root"></div>
