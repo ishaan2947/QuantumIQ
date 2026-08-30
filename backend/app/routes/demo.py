@@ -129,6 +129,42 @@ def _sanitize_history(req: DemoChatRequest) -> list[dict]:
     return cleaned
 
 
+def _is_quota_exhausted(exc: RateLimitError) -> bool:
+    """
+    Distinguish "you are going too fast" from "this account has no credit".
+
+    Both arrive as a 429. OpenAI marks the second with the error code
+    `insufficient_quota`, which is read from the parsed body when the SDK
+    exposes it and otherwise sniffed from the message text — the code is the
+    reliable signal, the string is a fallback for older SDK versions.
+    """
+    if getattr(exc, "code", None) == "insufficient_quota":
+        return True
+
+    # `body` is the error object itself on current SDK versions, but has been
+    # the whole envelope before — accept either shape rather than depending on
+    # which one this install happens to produce.
+    body = getattr(exc, "body", None)
+    candidates = []
+    if isinstance(body, dict):
+        candidates.append(body)
+        nested = body.get("error")
+        if isinstance(nested, dict):
+            candidates.append(nested)
+
+    for candidate in candidates:
+        if candidate.get("code") == "insufficient_quota":
+            return True
+
+    # Last resort: the human-readable message, from the body if it's there and
+    # otherwise from the exception's own string form.
+    messages = [str(candidate.get("message", "")) for candidate in candidates]
+    messages.append(str(exc))
+    haystack = " ".join(messages).lower()
+
+    return "insufficient_quota" in haystack or "exceeded your current quota" in haystack
+
+
 def _too_many(detail: str, limit_type: str, retry_after: int | None = None) -> HTTPException:
     headers = {"Retry-After": str(retry_after)} if retry_after else None
     return HTTPException(
@@ -263,9 +299,28 @@ async def demo_chat(payload: DemoChatRequest, request: Request):
                 "limit_type": "unconfigured",
             },
         )
-    except RateLimitError:
+    except RateLimitError as exc:
         _sessions.refund(session_id)
         _budget.refund()
+
+        # OpenAI returns 429 for two very different situations, and telling a
+        # visitor to "try again in a few seconds" is wrong for one of them:
+        # a genuine burst limit clears on its own, an exhausted account balance
+        # never does. Separate them so the UI can stop asking people to retry
+        # something that cannot succeed.
+        if _is_quota_exhausted(exc):
+            logger.error(
+                "Demo chat failed: the OpenAI account has no available credit. "
+                "Add credits at https://platform.openai.com/settings/organization/billing"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "message": "The demo tutor is temporarily unavailable. The simulator above is fully live.",
+                    "limit_type": "unconfigured",
+                },
+            )
+
         logger.warning("Demo chat failed: upstream OpenAI rate limit")
         raise _too_many("The tutor is busy right now. Try again in a few seconds.", "upstream", 10)
     except (APIError, Exception) as exc:  # noqa: B014 - APIError named for clarity

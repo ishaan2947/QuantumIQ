@@ -146,9 +146,62 @@ export async function fetchDemoStatus(sessionId: string): Promise<DemoStatus | n
  * with the simulator, so the tutor is usually warm by the time they reach it.
  */
 export function warmUpBackend(): void {
-  fetch(`${API_BASE}/health`, { method: 'GET', mode: 'cors' }).catch(() => {
-    /* Expected while the instance is still booting. */
-  });
+  void pingBackend();
+}
+
+/**
+ * Backend readiness, as far as the UI is concerned.
+ *
+ *   'warming' — request in flight, instance is probably cold-starting
+ *   'awake'   — responded, the tutor can be used
+ *   'asleep'  — didn't respond, retrying in the background
+ */
+export type BackendState = 'warming' | 'awake' | 'asleep';
+
+/** Single in-flight health check, shared by every caller. */
+let warmUpPromise: Promise<boolean> | null = null;
+let backendAwake = false;
+
+async function pingBackend(): Promise<boolean> {
+  try {
+    // A cold Render instance can take ~50s, so this is given generous room.
+    // AbortSignal.timeout isn't universal yet, hence the manual controller.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 70_000);
+
+    const response = await fetch(`${API_BASE}/health`, {
+      method: 'GET',
+      mode: 'cors',
+      signal: controller.signal,
+    });
+
+    clearTimeout(timer);
+    backendAwake = response.ok;
+    return response.ok;
+  } catch {
+    // Expected while the instance is still booting, or if it's simply down.
+    return false;
+  }
+}
+
+/**
+ * Resolves once the backend answers, so the tutor can show an honest
+ * "waking up" state instead of an enabled composer that will hang for a
+ * minute on the visitor's first message.
+ *
+ * Deduplicated: the landing page fires this on mount and the tutor awaits the
+ * same promise, so a visitor never causes two health checks.
+ */
+export function ensureBackendAwake(): Promise<boolean> {
+  if (backendAwake) return Promise.resolve(true);
+
+  if (!warmUpPromise) {
+    warmUpPromise = pingBackend().finally(() => {
+      warmUpPromise = null;
+    });
+  }
+
+  return warmUpPromise;
 }
 
 export { GITHUB_REPO_URL };

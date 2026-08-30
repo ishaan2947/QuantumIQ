@@ -22,8 +22,10 @@ import { AlertCircle, Bot, Github, Send, Sparkles, User } from 'lucide-react';
 import {
   DemoLimitError,
   DemoRequestError,
+  ensureBackendAwake,
   fetchDemoStatus,
   sendDemoMessage,
+  type BackendState,
   type DemoLimitType,
 } from '../../services/demoApi';
 import { loadDemoSession, saveDemoUsed } from '../../lib/demoSession';
@@ -64,6 +66,11 @@ export default function DemoTutor({ gates, numQubits }: DemoTutorProps) {
   const [isSending, setIsSending] = useState(false);
   const [showColdStartHint, setShowColdStartHint] = useState(false);
 
+  // Render's free instance sleeps after 15 minutes idle and takes ~50s to
+  // wake. Tracking that explicitly means the panel can say so, rather than
+  // offering a composer whose first message appears to hang.
+  const [backend, setBackend] = useState<BackendState>('warming');
+
   const [sessionId, setSessionId] = useState('');
   const [used, setUsed] = useState(0);
   const [limit, setLimit] = useState(5);
@@ -81,9 +88,16 @@ export default function DemoTutor({ gates, numQubits }: DemoTutorProps) {
     setSessionId(session.id);
     setUsed(session.used);
 
+    let cancelled = false;
+
+    // Shares the landing page's warm-up ping rather than firing a second one.
+    ensureBackendAwake().then((awake) => {
+      if (cancelled) return;
+      setBackend(awake ? 'awake' : 'asleep');
+    });
+
     // Reconcile with the server, which is authoritative — a reload shouldn't
     // hand back messages the backend has already counted.
-    let cancelled = false;
     fetchDemoStatus(session.id).then((status) => {
       if (cancelled || !status) return;
 
@@ -191,15 +205,26 @@ export default function DemoTutor({ gates, numQubits }: DemoTutorProps) {
           </div>
         </div>
 
-        <div
-          className={`rounded-full border px-3 py-1 text-[11px] font-medium ${
-            exhausted
-              ? 'border-amber-400/30 bg-amber-400/10 text-amber-200'
-              : 'border-glow-400/25 bg-glow-400/[0.07] text-glow-200'
-          }`}
-        >
-          {remaining} / {limit} left
-        </div>
+        {backend === 'warming' ? (
+          <div className="flex items-center gap-2 rounded-full border border-glow-400/25 bg-glow-400/[0.07] px-3 py-1 text-[11px] font-medium text-glow-200">
+            <motion.span
+              className="h-1.5 w-1.5 rounded-full bg-glow-300"
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ duration: 1.2, repeat: Infinity }}
+            />
+            Waking up
+          </div>
+        ) : (
+          <div
+            className={`rounded-full border px-3 py-1 text-[11px] font-medium ${
+              exhausted
+                ? 'border-amber-400/30 bg-amber-400/10 text-amber-200'
+                : 'border-glow-400/25 bg-glow-400/[0.07] text-glow-200'
+            }`}
+          >
+            {remaining} / {limit} left
+          </div>
+        )}
       </div>
 
       {/* ── Transcript ───────────────────────────────────────────── */}
@@ -269,6 +294,27 @@ export default function DemoTutor({ gates, numQubits }: DemoTutorProps) {
             </div>
           </motion.div>
         ))}
+
+        {backend === 'warming' && messages.length === 1 && (
+          <div className="rounded-xl border border-ink-700/70 bg-ink-800/50 px-4 py-3">
+            <p className="text-[11px] leading-relaxed text-gray-500">
+              The demo backend sleeps when idle to stay on free hosting, so the
+              tutor takes up to a minute to wake on the first visit. Everything
+              to the left — the circuit, the Bloch sphere, the measurements —
+              runs in your browser and works right now.
+            </p>
+          </div>
+        )}
+
+        {backend === 'asleep' && messages.length === 1 && (
+          <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.06] px-4 py-3">
+            <p className="text-[11px] leading-relaxed text-gray-400">
+              The tutor backend isn't responding right now. The simulator, Bloch
+              sphere and measurements are unaffected — they run entirely in your
+              browser. Send a message to retry.
+            </p>
+          </div>
+        )}
 
         {isSending && (
           <div className="flex gap-3">
@@ -368,7 +414,11 @@ export default function DemoTutor({ gates, numQubits }: DemoTutorProps) {
               value={input}
               onChange={(event) => setInput(event.target.value.slice(0, MAX_MESSAGE_CHARS))}
               placeholder={
-                blocked ? 'Demo limit reached' : 'Ask about your circuit…'
+                blocked
+                  ? 'Demo limit reached'
+                  : backend === 'warming'
+                    ? 'Waking the tutor — the simulator works meanwhile…'
+                    : 'Ask about your circuit…'
               }
               disabled={blocked || isSending}
               aria-label="Message the AI tutor"
