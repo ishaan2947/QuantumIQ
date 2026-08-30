@@ -133,30 +133,41 @@ export default function Hero() {
 
   return (
     <section ref={heroRef} id="top" className="relative isolate overflow-hidden bg-ink-950">
+      {/* Warm ambient pool behind the hardware.
+          Lives at section level rather than inside the image column: it needs
+          to spill left past the column edge to read as ambient light, and the
+          column below clips its own contents. */}
+      {!prefersReducedMotion && (
+        <motion.div
+          aria-hidden
+          style={{ x: glowX, y: glowY }}
+          className="pointer-events-none absolute inset-y-0 right-0 w-full lg:w-[62%]"
+        >
+          <div
+            className="absolute left-1/2 top-1/2 h-[46rem] w-[46rem] -translate-x-1/2 -translate-y-1/2 rounded-full"
+            style={{
+              background:
+                'radial-gradient(circle, rgba(251,146,60,0.13) 0%, rgba(234,88,12,0.05) 42%, transparent 70%)',
+            }}
+          />
+        </motion.div>
+      )}
+
       {/* ── Image column ──────────────────────────────────────────────
           Full-bleed behind the copy on mobile (the portrait aspect suits a
-          phone), pinned to the right side from lg up. */}
-      <div className="absolute inset-0 lg:left-[46%]">
-        {/* Warm ambient pool behind the hardware. */}
-        {!prefersReducedMotion && (
-          <motion.div
-            aria-hidden
-            style={{ x: glowX, y: glowY }}
-            className="parallax-layer absolute inset-0"
-          >
-            <div
-              className="absolute left-1/2 top-1/2 h-[46rem] w-[46rem] -translate-x-1/2 -translate-y-1/2 rounded-full"
-              style={{
-                background:
-                  'radial-gradient(circle, rgba(251,146,60,0.13) 0%, rgba(234,88,12,0.05) 42%, transparent 70%)',
-              }}
-            />
-          </motion.div>
-        )}
+          phone), pinned to the right side from lg up.
 
+          overflow-hidden is load-bearing: without it the parallax translate
+          slides the image past the column's left edge and paints a hairline
+          seam down the middle of the page. */}
+      <div className="absolute inset-0 overflow-hidden lg:left-[46%]">
         <motion.div
           style={{ x: imageX, y: imageY }}
-          className="parallax-layer absolute inset-0 scale-[1.04]"
+          // scale must exceed the parallax travel or the translate exposes the
+          // container edge. At 1.12 the image overhangs ~6% each side, far
+          // more than the 20px it ever moves. The source is 1600px shown at
+          // ~1080px, so this is still downscaling -- no sharpness cost.
+          className="parallax-layer absolute inset-0 scale-[1.12]"
         >
           <picture>
             <source srcSet="/cryostat.webp" type="image/webp" />
