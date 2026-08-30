@@ -126,8 +126,8 @@ export default function Hero() {
   const prefersReducedMotion = useReducedMotion();
 
   // The photograph moves least — it is the furthest "away".
-  const imageX = useTransform(px, (v) => v * -18);
-  const imageY = useTransform(py, (v) => v * -12);
+  const imageX = useTransform(px, (v) => v * -14);
+  const imageY = useTransform(py, (v) => v * -9);
 
   // The bloom tracks the pointer exactly, so the hologram appears to catch
   // light wherever the visitor is looking.
@@ -143,7 +143,7 @@ export default function Hero() {
       {/* ── Layer 1: the photograph ─────────────────────────────────── */}
       <motion.div
         style={{ x: imageX, y: imageY }}
-        className="parallax-layer absolute inset-0 -z-10 scale-110"
+        className="parallax-layer absolute inset-0 -z-10 scale-[1.06]"
       >
         <img
           src="/quant.jpg"
@@ -152,8 +152,18 @@ export default function Hero() {
           // faces and hologram in frame instead of centring on the table.
           className="h-full w-full object-cover object-[center_42%] lg:object-[center_36%]"
           decoding="async"
+          // The source is 896x1088, so on a wide viewport this is upscaled
+          // roughly 3x. A little extra contrast and saturation stops the
+          // interpolation reading as a blurry photo and lets it read as
+          // low-light depth instead. The grain layer below does the rest.
+          style={{ filter: 'contrast(1.08) saturate(1.12)' }}
         />
       </motion.div>
+
+      {/* Film grain, sized in device pixels so it stays crisp on retina.
+          Masks the softness of the upscaled source — without it the photo
+          reads as out of focus rather than atmospheric. */}
+      <div aria-hidden className="hero-grain absolute inset-0 -z-10" />
 
       {/* ── Layer 2: tone and legibility ────────────────────────────── */}
       <div aria-hidden className="absolute inset-0 -z-10 bg-ink-950/30" />
