@@ -73,12 +73,28 @@ export default function Footer() {
           </div>
         </div>
 
-        <p className="border-t border-ink-700/30 py-6 text-[11px] leading-relaxed text-gray-600">
-          The hosted demo is a preview: the simulator runs client-side, and the tutor
-          is a single gpt-4o-mini call capped at five messages per session. The full
-          project runs the agent loop against gpt-4o with Qiskit simulation and
-          persistent progress tracking.
-        </p>
+        <div className="space-y-2 border-t border-ink-700/30 py-6">
+          <p className="text-[11px] leading-relaxed text-gray-600">
+            The hosted demo is a preview: the simulator runs client-side, and the tutor
+            is a single gpt-4o-mini call capped at five messages per session. The full
+            project runs the agent loop against gpt-4o with Qiskit simulation and
+            persistent progress tracking.
+          </p>
+          {/* Unsplash doesn't require attribution, but crediting a photographer
+              whose work is carrying your hero is the decent thing to do. */}
+          <p className="text-[11px] text-gray-700">
+            Hero photograph by{' '}
+            <a
+              href="https://unsplash.com/@planetvolumes"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="underline underline-offset-2 hover:text-gray-500"
+            >
+              Planet Volumes
+            </a>{' '}
+            on Unsplash.
+          </p>
+        </div>
       </div>
     </footer>
   );

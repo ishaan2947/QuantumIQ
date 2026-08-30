@@ -121,27 +121,22 @@ html {
 /*
  * Film grain over the hero photograph.
  *
- * quant.jpg is 896x1088, so on a wide viewport it is upscaled around 3x and
- * the interpolation reads as "out of focus". Overlaying fine noise gives the
- * eye high-frequency detail to resolve, which reads as grain rather than
- * blur -- the same reason film stock tolerates enlargement better than a
- * smooth digital upscale.
+ * The hero source is a 3000x4000 original served at 1600px, so unlike the
+ * image this replaced it is not being upscaled and the grain is no longer
+ * covering for softness. It stays because it does a second job: the flat UI
+ * and the photograph are different materials, and a shared grain over both
+ * makes them read as one surface rather than a render pasted onto a page.
+ * Hence the much lower opacity than a compensating grain would need.
  *
  * Generated with SVG feTurbulence rather than a raster tile so it costs no
  * extra request and stays sharp at any device pixel ratio.
  */
 .hero-grain {
   pointer-events: none;
-  opacity: 0.16;
+  opacity: 0.07;
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-size: 180px 180px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hero-grain {
-    opacity: 0.1;
-  }
 }
 
 /* Keeps parallax layers on their own compositor layer so pointer movement

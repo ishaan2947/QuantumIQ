@@ -18,7 +18,9 @@
       property="og:description"
       content="An interactive AI tutor and live quantum circuit simulator. Try the demo — no signup required."
     />
-    <meta property="og:image" content="/quant.jpg" />
+    <meta property="og:image" content="/og-cover.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -29,8 +31,19 @@
       The hero photograph is the page's largest contentful paint. Preloading it
       alongside the JS bundle means it starts downloading immediately rather
       than waiting for React to mount and render the <img>.
+
+      `imagesrcset` + `type` mirrors the <picture> element in Hero.tsx, so the
+      browser preloads whichever format it will actually use rather than
+      fetching the JPEG and then discarding it for the WebP.
     -->
-    <link rel="preload" as="image" href="/quant.jpg" fetchpriority="high" />
+    <link
+      rel="preload"
+      as="image"
+      href="/cryostat.jpg"
+      imagesrcset="/cryostat.webp"
+      type="image/webp"
+      fetchpriority="high"
+    />
   </head>
   <body>
     <div id="root"></div>
