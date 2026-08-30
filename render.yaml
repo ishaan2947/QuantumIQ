@@ -1,0 +1,79 @@
+# Render blueprint for the QuantumIQ backend.
+#
+# Deploy with: Render dashboard -> New -> Blueprint -> point at this repo.
+# The frontend is NOT here — it goes to Vercel (see frontend/vercel.json).
+#
+# Free-tier notes, all of which the app is built to tolerate:
+#
+#   * The web service spins down after ~15 minutes of inactivity and takes
+#     roughly 50 seconds to wake. The landing page fires a /api/health ping on
+#     mount to start that wake-up early, and the demo simulator runs entirely
+#     in the browser so nothing visible depends on the backend being awake.
+#
+#   * `--workers 1` is required, not just economical. The demo's rate limiters
+#     hold their counters in process memory, so a second worker would keep a
+#     second set and double every limit. See backend/app/core/rate_limit.py.
+#
+#   * Free instance hours are shared across all your free services in a month.
+#     One always-on service would consume essentially all of them, which is why
+#     an external uptime pinger is a trade-off rather than a free win — see
+#     docs/DEPLOYMENT.md.
+#
+#   * The free Postgres instance expires after a limited period (check Render's
+#     current terms). When it does, auth and saved circuits stop working but the
+#     landing page, the simulator and the demo tutor keep running — startup
+#     tolerates an unreachable database on purpose.
+
+services:
+  - type: web
+    name: quantumiq-api
+    runtime: python
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: pip install --no-cache-dir -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+
+      - key: DATABASE_URL
+        fromDatabase:
+          name: quantumiq-db
+          property: connectionString
+
+      - key: SECRET_KEY
+        generateValue: true
+
+      # Set this in the Render dashboard — never commit it.
+      - key: OPENAI_API_KEY
+        sync: false
+
+      # Your Vercel production domain. Preview deployments are matched by the
+      # *.vercel.app regex in app/main.py, so only the production URL is needed.
+      - key: CORS_ORIGINS
+        sync: false
+
+      - key: DEMO_ENABLED
+        value: "true"
+      - key: DEMO_MODEL
+        value: gpt-4o-mini
+      - key: DEMO_SESSION_LIMIT
+        value: "5"
+      - key: DEMO_IP_LIMIT
+        value: "15"
+      - key: DEMO_IP_BURST_LIMIT
+        value: "6"
+      # Global daily ceiling. At roughly $0.0003 per demo message this bounds
+      # spend at about $0.09/day regardless of traffic.
+      - key: DEMO_DAILY_BUDGET
+        value: "300"
+      - key: TRUST_PROXY_HEADERS
+        value: "true"
+
+databases:
+  - name: quantumiq-db
+    plan: free
+    databaseName: quantumiq
+    user: quantumiq
