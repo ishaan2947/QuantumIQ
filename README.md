@@ -10,6 +10,10 @@
 
 ## Screenshots
 
+### Landing Page — Live Demo, No Signup Required
+![QuantumIQ landing page hero: split layout with the product name and CTA on the left and a full-height photograph of a dilution refrigerator on the right, warm copper light against a dark cyan interface](docs/screenshots/landing.jpg)
+*The hero image reacts to the cursor — the hardware and its ambient glow drift at different rates, and grain ties the photograph to the flat UI so they read as one surface.*
+
 ### Dashboard — Personalized Learning Plan
 ![Dashboard showing personalized quantum computing curriculum with concept mastery tracking](docs/screenshots/dashboard.jpg)
 
