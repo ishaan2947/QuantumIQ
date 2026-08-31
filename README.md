@@ -4,6 +4,8 @@
 
 **Stack:** FastAPI · Qiskit · GPT-4o · PostgreSQL · React · TypeScript · Three.js · Docker
 
+**🔗 [Live demo](https://quantumiq-lab.vercel.app)** — no signup required, try the circuit simulator and AI tutor directly · **[Repo](https://github.com/ishaan2947/QuantumIQ)**
+
 ---
 
 ## Screenshots
@@ -21,6 +23,8 @@
 ---
 
 ## Landing Page & Public Demo
+
+**Try it live: [quantumiq-lab.vercel.app](https://quantumiq-lab.vercel.app)**
 
 The site root (`/`) is a public landing page with a live, no-signup demo. It is
 split by cost:
