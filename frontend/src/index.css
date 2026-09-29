@@ -2,146 +2,318 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * QuantumIQ — global styles.
+ *
+ * See DESIGN.md. This file holds the three things Tailwind utilities cannot
+ * express well: the motion system's variables, a handful of genuinely shared
+ * component classes (panel, keycap, readout), and the reduced-motion policy.
+ *
+ * Everything else is a utility at the call site. Resist adding "helper"
+ * classes here that are one or two utilities long.
+ */
+
 :root {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   color-scheme: dark;
+
+  /* ── Motion ──────────────────────────────────────────────────────────
+     One easing curve, four durations. DESIGN.md §7. */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --t-key: 90ms;
+  --t-state: 180ms;
+  --t-move: 420ms;
+  --t-enter: 560ms;
+
+  /* Circuit geometry, shared between the wires (CSS) and the gate overlay
+     (absolutely positioned from JS). Both must read the same numbers. */
+  --row-h: 52px;
+  --col-w: 52px;
+  --gutter-w: 56px;
 }
 
-body {
-  margin: 0;
-  background: #0a0a1a;
-  color: #e0e0e0;
-  min-height: 100vh;
-}
-
-/* Anchor scrolling from the hero CTA should clear the sticky landing nav. */
 html {
   scroll-behavior: smooth;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #080706;
+  color: #f0eae1;
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Readouts must not jitter as values change during playback. Applied to the
+   mono face globally rather than per call site, because every monospace run in
+   this interface is a number or a symbol being read. */
+.font-mono,
+code,
+kbd {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* ─── Focus ──────────────────────────────────────────────────────────────
+   One visible focus treatment everywhere, on the accent colour, with an
+   offset so it reads against both panel and sunk surfaces. Set globally so a
+   component cannot accidentally ship without it. */
+:focus-visible {
+  outline: 2px solid #d28e4e;
+  outline-offset: 2px;
+  border-radius: 1px;
+}
+
+/* Mouse users don't get the ring, but keyboard users always do. */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ─── Scrollbars ─────────────────────────────────────────────────────────
+   Thin, graphite, copper on hover. Part of the instrument rather than a
+   default blue-grey bar through the middle of a panel. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #0b0a08;
+}
+::-webkit-scrollbar-thumb {
+  background: #241f19;
+  border: 2px solid #0b0a08;
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #5e3814;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #241f19 #0b0a08;
+}
+
+@layer components {
+  /* ─── Panel ────────────────────────────────────────────────────────────
+     The faceplate. Square, hairline-bordered, flat. Panels butt together
+     with shared 1px seams rather than floating with gaps between them. */
+  .panel {
+    @apply border border-rule bg-panel;
+    border-radius: 3px;
+  }
+
+  /* A panel's nameplate strip: small-caps mono label on a raised ground,
+     separated from the panel body by a hairline. Every panel has one, which
+     is what makes a grid of panels read as one instrument. */
+  .nameplate {
+    @apply flex items-center justify-between gap-3 border-b border-rule bg-panel-raised px-4 py-2.5;
+  }
+
+  .nameplate-label {
+    @apply font-mono text-micro font-medium uppercase text-ink-tertiary;
+  }
+
+  /* ─── Keycap ───────────────────────────────────────────────────────────
+     A gate key. Real travel on press: 1px down, lit top edge removed,
+     inset shadow added. 90ms, because a key that takes longer than that to
+     respond feels broken rather than smooth. */
+  .keycap {
+    @apply relative flex select-none items-center justify-center border bg-panel-raised shadow-key;
+    border-radius: 4px;
+    transition:
+      transform var(--t-key) var(--ease),
+      background-color var(--t-state) var(--ease),
+      border-color var(--t-state) var(--ease),
+      box-shadow var(--t-key) var(--ease);
+  }
+
+  .keycap:not(:disabled):active {
+    transform: translateY(1px);
+    @apply shadow-key-pressed;
+  }
+
+  /* ─── Readout ──────────────────────────────────────────────────────────
+     A recessed well containing values. Darker than the panel it sits in, so
+     the numbers read as printed on a display rather than set on a page. */
+  .readout-well {
+    @apply border border-rule bg-panel-sunk;
+    border-radius: 2px;
+  }
+
+  /* ─── Rules ────────────────────────────────────────────────────────────
+     A hairline that fades out at one end, for edges that would otherwise
+     terminate abruptly against a section boundary. */
+  .rule-fade-r {
+    background: linear-gradient(90deg, #352d24 0%, #352d24 60%, transparent 100%);
+  }
+
+  /* ─── Buttons ──────────────────────────────────────────────────────────
+     Solid copper, squared, no glow. One primary per view. */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 border border-copper-500 bg-copper-400
+           px-5 py-2.5 text-small font-medium text-void;
+    border-radius: 3px;
+    transition:
+      background-color var(--t-state) var(--ease),
+      border-color var(--t-state) var(--ease);
+  }
+  .btn-primary:hover:not(:disabled) {
+    @apply border-copper-400 bg-copper-300;
+  }
+  .btn-primary:disabled {
+    @apply cursor-not-allowed border-rule-strong bg-panel-raised text-ink-faint;
+  }
+
+  /* The quiet counterpart. A text link with a rule under it — deliberately
+     not a second button, so the pair never reads as "pill + outlined pill". */
+  .btn-quiet {
+    @apply inline-flex items-center gap-2 border-b border-rule-strong pb-0.5 text-small
+           font-medium text-ink-secondary;
+    transition:
+      color var(--t-state) var(--ease),
+      border-color var(--t-state) var(--ease);
+  }
+  .btn-quiet:hover {
+    @apply border-copper-400 text-copper-200;
+  }
+
+  /* A panel-level control: small, square, graphite, copper on hover. */
+  .btn-control {
+    @apply inline-flex items-center justify-center gap-1.5 border border-rule-strong bg-panel-raised
+           px-2.5 py-1.5 font-mono text-readout-sm uppercase tracking-[0.1em] text-ink-tertiary;
+    border-radius: 3px;
+    transition:
+      color var(--t-state) var(--ease),
+      border-color var(--t-state) var(--ease),
+      background-color var(--t-state) var(--ease);
+  }
+  .btn-control:hover:not(:disabled) {
+    @apply border-copper-600 bg-copper-900 text-copper-200;
+  }
+  .btn-control:disabled {
+    @apply cursor-not-allowed text-ink-faint;
+  }
+
+  /* ─── Form fields ──────────────────────────────────────────────────────*/
+  .field {
+    @apply w-full border border-rule-strong bg-panel-sunk px-3 py-2.5 text-body text-ink-primary
+           placeholder:text-ink-faint;
+    border-radius: 3px;
+    transition: border-color var(--t-state) var(--ease);
+  }
+  .field:focus {
+    @apply border-copper-500;
+  }
+  .field:disabled {
+    @apply cursor-not-allowed text-ink-faint;
+  }
+
+  .field-label {
+    @apply mb-1.5 block font-mono text-micro uppercase text-ink-tertiary;
   }
 }
 
-/* Custom scrollbar for the quantum aesthetic */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #1a1a2e;
-}
-::-webkit-scrollbar-thumb {
-  background: #4c6ef5;
-  border-radius: 3px;
-}
-
-/* Gate dragging styles */
-.gate-dragging {
-  opacity: 0.5;
-  transform: scale(1.1);
+/* ─── Range inputs ───────────────────────────────────────────────────────
+   The transport scrubber. Styled as a machined track with a copper thumb;
+   the browser default is a blue pill and nothing else in this interface is
+   either of those things. */
+input[type='range'].transport {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 20px;
+  background: transparent;
+  cursor: pointer;
 }
 
-/* Monospace for quantum notation */
-.quantum-notation {
-  font-family: 'JetBrains Mono', monospace;
+input[type='range'].transport::-webkit-slider-runnable-track {
+  height: 2px;
+  background: #241f19;
+  border-radius: 0;
+}
+input[type='range'].transport::-moz-range-track {
+  height: 2px;
+  background: #241f19;
+  border-radius: 0;
 }
 
-/* Glow effect for active elements */
-.quantum-glow {
-  box-shadow: 0 0 15px rgba(92, 124, 250, 0.4);
+input[type='range'].transport::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 4px;
+  height: 16px;
+  margin-top: -7px;
+  background: #d28e4e;
+  border: none;
+  border-radius: 1px;
+}
+input[type='range'].transport::-moz-range-thumb {
+  width: 4px;
+  height: 16px;
+  background: #d28e4e;
+  border: none;
+  border-radius: 1px;
 }
 
-/*
- * Smooth transitions for everything.
- *
- * Note the omission of `opacity`: Framer Motion animates opacity by writing
- * inline styles every frame, and a competing CSS transition on the same
- * property smears those writes into a laggy double-animation. Components that
- * want an opacity transition should ask for one explicitly.
- */
-* {
-  transition-property: background-color, border-color, box-shadow;
-  transition-duration: 150ms;
-  transition-timing-function: ease;
+input[type='range'].transport:disabled::-webkit-slider-thumb {
+  background: #352d24;
+}
+input[type='range'].transport:disabled::-moz-range-thumb {
+  background: #352d24;
 }
 
-/* ─── Landing page ───────────────────────────────────────────────────────── */
+/* ─── The photograph ─────────────────────────────────────────────────────
+   Film grain over the hero image. The flat UI and the photograph are
+   different materials; a shared grain over the seam makes them read as one
+   surface. Generated with feTurbulence so it costs no request and stays
+   sharp at any device pixel ratio.
 
-/*
- * Gradient text used for the wordmark and section accents. Set as a component
- * class rather than repeating six Tailwind utilities at every call site.
- */
-.text-gradient-quantum {
-  background-image: linear-gradient(100deg, #a5f3fc 0%, #67e8f9 35%, #748ffc 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-/*
- * Faint engineering grid behind the feature and demo sections. Two 1px
- * gradients tiled at 64px — cheaper than a background image and it scales
- * to any viewport without an asset request.
- */
-.bg-lab-grid {
-  background-image:
-    linear-gradient(rgba(92, 124, 250, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(92, 124, 250, 0.055) 1px, transparent 1px);
-  background-size: 64px 64px;
-}
-
-/*
- * 1px gradient hairline along the top edge of a card, brightest in the
- * middle. Gives interactive surfaces a lit edge without a real border.
- */
-.edge-highlight::before {
-  content: '';
-  position: absolute;
-  inset-inline: 0;
-  top: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(103, 232, 249, 0.55),
-    transparent
-  );
-  opacity: 0;
-  transition: opacity 300ms ease;
+   Lower opacity than the previous implementation: the source is a 3000x4000
+   original served at 1600px, so the grain is no longer covering for
+   upscaling softness and only has the material job to do. */
+.grain {
   pointer-events: none;
-}
-
-.edge-highlight:hover::before,
-.edge-highlight:focus-within::before {
-  opacity: 1;
-}
-
-/*
- * Film grain over the hero photograph.
- *
- * The hero source is a 3000x4000 original served at 1600px, so unlike the
- * image this replaced it is not being upscaled and the grain is no longer
- * covering for softness. It stays because it does a second job: the flat UI
- * and the photograph are different materials, and a shared grain over both
- * makes them read as one surface rather than a render pasted onto a page.
- * Hence the much lower opacity than a compensating grain would need.
- *
- * Generated with SVG feTurbulence rather than a raster tile so it costs no
- * extra request and stays sharp at any device pixel ratio.
- */
-.hero-grain {
-  pointer-events: none;
-  opacity: 0.07;
+  opacity: 0.06;
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-size: 180px 180px;
 }
 
-/* Keeps parallax layers on their own compositor layer so pointer movement
-   never triggers paint of the hero photograph. */
-.parallax-layer {
-  will-change: transform;
-  backface-visibility: hidden;
+/* ─── Reduced motion ─────────────────────────────────────────────────────
+   Policy, not a blanket kill switch. DESIGN.md §7.
+
+   Transforms and entrance animations go entirely. Width and colour
+   transitions on readouts are kept but shortened: a probability bar that
+   teleports between values destroys the comparison the bar exists to make,
+   which is a comprehension loss, not a motion preference. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-key: 0ms;
+    --t-state: 0ms;
+    --t-move: 120ms;
+    --t-enter: 0ms;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+
+  .keycap:not(:disabled):active {
+    transform: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Re-exempt the readouts from the blanket rule above. */
+  .motion-keep,
+  .motion-keep * {
+    transition-duration: 120ms !important;
+  }
 }
