@@ -2,14 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/mark.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>QuantumIQ — Learn Quantum Computing</title>
+    <title>QuantumIQ — Quantum Circuit Console</title>
     <meta
       name="description"
-      content="Learn quantum computing through an interactive AI tutor and live circuit simulator. Build circuits, watch the Bloch sphere, and ask a circuit-aware tutor what just happened."
+      content="A statevector simulator that runs in your browser: place gates, scrub the circuit step by step, watch the Bloch vectors move, and ask a circuit-aware tutor what just happened."
     />
-    <meta name="theme-color" content="#0a0a1a" />
+    <meta name="theme-color" content="#080706" />
 
     <!--
       Open Graph, for when the project is shared — LinkedIn, Slack, iMessage.
@@ -20,30 +20,40 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://quantumiq-lab.vercel.app/" />
     <meta property="og:site_name" content="QuantumIQ" />
-    <meta property="og:title" content="QuantumIQ — Learn Quantum Computing" />
+    <meta property="og:title" content="QuantumIQ — Quantum Circuit Console" />
     <meta
       property="og:description"
-      content="An interactive AI tutor and live quantum circuit simulator. Try the demo — no signup required."
+      content="Place gates, scrub the circuit step by step, and watch the state move. Runs in your browser — no sign-up."
     />
     <meta property="og:image" content="https://quantumiq-lab.vercel.app/og-cover.jpg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="QuantumIQ — Learn Quantum Computing" />
+    <meta name="twitter:title" content="QuantumIQ — Quantum Circuit Console" />
     <meta
       name="twitter:description"
-      content="An interactive AI tutor and live quantum circuit simulator. Try the demo — no signup required."
+      content="Place gates, scrub the circuit step by step, and watch the state move. Runs in your browser — no sign-up."
     />
     <meta name="twitter:image" content="https://quantumiq-lab.vercel.app/og-cover.jpg" />
 
+    <!--
+      Three faces, each with one job (DESIGN.md §4): Space Grotesk for
+      headings, IBM Plex Sans for body, IBM Plex Mono for readouts. Weights
+      are pinned to the ones actually used — 500/700 display, 400/500 body,
+      400/500 mono — rather than requesting a full range and shipping six
+      unused files.
+    -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
 
     <!--
-      The hero photograph is the page's largest contentful paint. Preloading it
-      alongside the JS bundle means it starts downloading immediately rather
-      than waiting for React to mount and render the <img>.
+      The hero photograph is the page's largest contentful paint. Preloading
+      it alongside the JS bundle means it starts downloading immediately
+      rather than waiting for React to mount and render the <img>.
 
       `imagesrcset` + `type` mirrors the <picture> element in Hero.tsx, so the
       browser preloads whichever format it will actually use rather than

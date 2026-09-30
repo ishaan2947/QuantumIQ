@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="QuantumIQ">
+  <!--
+    The mark is the Hadamard keycap.
+
+    In this design system H is the only gate rendered as a filled copper key
+    (DESIGN.md §6) — it is the one gate that takes a basis state somewhere a
+    basis state cannot go. A single solid key reads at 16px where a circuit
+    diagram or a Bloch sphere turns to mush, and it means something precise
+    inside the interface rather than being a generic atom glyph.
+  -->
+  <rect width="32" height="32" rx="4" fill="#080706" />
+  <rect x="4" y="4" width="24" height="24" rx="3" fill="#D28E4E" />
+  <path
+    d="M11 9.5v13M21 9.5v13M11 16h10"
+    stroke="#1A1208"
+    stroke-width="2.75"
+    stroke-linecap="square"
+  />
+</svg>
