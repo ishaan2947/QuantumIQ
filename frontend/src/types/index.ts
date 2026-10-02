@@ -127,21 +127,101 @@ export interface ChallengeHistory {
 
 // ─── Gate Metadata ──────────────────────────────────────────────────────────
 
+/**
+ * Gates are grouped by what they physically do to the state, and the grouping
+ * is what drives their appearance — fill, outline, width and glyph weight,
+ * never hue. See DESIGN.md §6.
+ *
+ *   superposition — H alone. The only gate that takes a basis state somewhere
+ *                   a basis state cannot go, so the only filled key.
+ *   pauli         — X, Y, Z. A π rotation about one axis.
+ *   phase         — S, T. A fraction of π about Z.
+ *   entangling    — CX, CCX. Acts on more than one wire, so the key is wider.
+ */
+export type GateFamily = 'superposition' | 'pauli' | 'phase' | 'entangling';
+
 export interface GateInfo {
   name: string;
   symbol: string;
   description: string;
-  qubits: number; // How many qubits this gate acts on
-  color: string;
+  /** How many qubits this gate acts on. */
+  qubits: number;
+  family: GateFamily;
+  /** Single-key keyboard shortcut, engraved on the keycap. */
+  key: string;
 }
 
 export const GATE_CATALOG: Record<GateName, GateInfo> = {
-  h: { name: 'Hadamard', symbol: 'H', description: 'Creates superposition', qubits: 1, color: '#5c7cfa' },
-  x: { name: 'Pauli-X', symbol: 'X', description: 'Bit flip (NOT gate)', qubits: 1, color: '#ff6b6b' },
-  y: { name: 'Pauli-Y', symbol: 'Y', description: 'Bit+phase flip', qubits: 1, color: '#51cf66' },
-  z: { name: 'Pauli-Z', symbol: 'Z', description: 'Phase flip', qubits: 1, color: '#ffd43b' },
-  cx: { name: 'CNOT', symbol: 'CX', description: 'Controlled NOT', qubits: 2, color: '#845ef7' },
-  ccx: { name: 'Toffoli', symbol: 'CCX', description: 'Controlled-controlled NOT', qubits: 3, color: '#f783ac' },
-  s: { name: 'S Gate', symbol: 'S', description: 'π/2 phase shift', qubits: 1, color: '#20c997' },
-  t: { name: 'T Gate', symbol: 'T', description: 'π/4 phase shift', qubits: 1, color: '#fd7e14' },
+  h: {
+    name: 'Hadamard',
+    symbol: 'H',
+    description: 'Puts a qubit into an equal superposition of |0⟩ and |1⟩',
+    qubits: 1,
+    family: 'superposition',
+    key: 'h',
+  },
+  x: {
+    name: 'Pauli-X',
+    symbol: 'X',
+    description: 'Bit flip — a π rotation about the X axis',
+    qubits: 1,
+    family: 'pauli',
+    key: 'x',
+  },
+  y: {
+    name: 'Pauli-Y',
+    symbol: 'Y',
+    description: 'Bit and phase flip — a π rotation about the Y axis',
+    qubits: 1,
+    family: 'pauli',
+    key: 'y',
+  },
+  z: {
+    name: 'Pauli-Z',
+    symbol: 'Z',
+    description: 'Phase flip — a π rotation about the Z axis',
+    qubits: 1,
+    family: 'pauli',
+    key: 'z',
+  },
+  s: {
+    name: 'S',
+    symbol: 'S',
+    description: 'Quarter turn about Z — a π/2 phase shift',
+    qubits: 1,
+    family: 'phase',
+    key: 's',
+  },
+  t: {
+    name: 'T',
+    symbol: 'T',
+    description: 'Eighth turn about Z — a π/4 phase shift',
+    qubits: 1,
+    family: 'phase',
+    key: 't',
+  },
+  cx: {
+    name: 'CNOT',
+    symbol: 'CX',
+    description: 'Flips the target when the control is |1⟩ — this is what entangles',
+    qubits: 2,
+    family: 'entangling',
+    key: '2',
+  },
+  ccx: {
+    name: 'Toffoli',
+    symbol: 'CCX',
+    description: 'Flips the target when both controls are |1⟩',
+    qubits: 3,
+    family: 'entangling',
+    key: '3',
+  },
 };
+
+/** Reverse lookup for the keypad's keyboard shortcuts. */
+export const GATE_BY_KEY: Record<string, GateName> = Object.entries(
+  GATE_CATALOG,
+).reduce<Record<string, GateName>>((acc, [name, info]) => {
+  acc[info.key] = name as GateName;
+  return acc;
+}, {});
