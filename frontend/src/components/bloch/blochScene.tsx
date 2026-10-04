@@ -2,13 +2,19 @@
  * Shared Three.js pieces of the Bloch sphere.
  *
  * Extracted so the signed-in Lab (BlochSphere.tsx, which reads circuit state
- * from context) and the public demo (DemoBlochSphere.tsx, which takes props)
- * render the same scene instead of maintaining two copies of the geometry.
+ * from context) and the public console (DemoBlochSphere.tsx, which takes
+ * props) render the same scene instead of maintaining two copies of the
+ * geometry.
  *
  * Coordinate mapping, which is easy to get wrong: Three.js is Y-up, the Bloch
  * convention is Z-up, so the Bloch vector (x, y, z) is placed at the scene
- * position (x, z, -y). |0> ends up at the top of the screen, which is what a
+ * position (x, z, -y). |0⟩ ends up at the top of the screen, which is what a
  * reader expects from every textbook diagram.
+ *
+ * Styling follows DESIGN.md: a fine drawn wireframe of real meridians and
+ * parallels rather than a triangulated THREE wireframe (which reads as noise),
+ * copper state vectors, and axis labels for the four states a learner actually
+ * needs to locate.
  */
 
 import { useMemo, useRef } from 'react';
@@ -19,15 +25,67 @@ import * as THREE from 'three';
 
 import type { BlochCoords } from '../../types';
 
-/** Lab palette. Unchanged from the original BlochSphere so the signed-in
- *  view keeps the colours its users already know. */
-export const QUBIT_COLORS = ['#5c7cfa', '#ff6b6b', '#51cf66', '#ffd43b', '#845ef7'];
+/**
+ * Per-qubit vector colours.
+ *
+ * Distinguished by brightness and by copper-versus-steel rather than by hue —
+ * the palette has exactly two chromatic values and a rainbow of qubit colours
+ * is precisely what this redesign removed. Four entries covers the console's
+ * cap; the Lab cycles for more.
+ */
+export const QUBIT_COLORS = ['#D28E4E', '#D6D0C6', '#8A531F', '#60594F'];
 
-/** Landing-page palette, tuned to the hero photograph's cyan/blue range. */
-export const DEMO_QUBIT_COLORS = ['#22d3ee', '#5c7cfa', '#a78bfa', '#f472b6'];
+/** Scene furniture. */
+const C_WIRE = '#4A4237'; // meridians and parallels
+const C_EQUATOR = '#7A5428'; // the equator — warmer and brighter than the rest
+const C_AXIS = '#5C5448'; // axis rules
+const C_LABEL_BASIS = '#E2A871'; // |0⟩ and |1⟩ — the measurement basis
+const C_LABEL_SUPER = '#9D968A'; // |+⟩, |−⟩ and the imaginary axis
+
+/**
+ * Camera framing, shared by both panels so they frame the sphere identically.
+ *
+ * Deliberately generous. OrbitControls owns the camera once it mounts, and
+ * between its distance clamping and the panel's aspect ratio the effective
+ * field of view is not reliably the one this position and fov imply — an
+ * earlier, tighter framing computed to fit on paper and clipped the |0⟩ and
+ * |1⟩ labels in practice. A clipped label is a bug; a sphere that sits a
+ * little smaller in its panel is a preference, and the viewer can zoom.
+ */
+export const BLOCH_CAMERA = { position: [2.3, 1.75, 2.3] as [number, number, number], fov: 45 };
 
 /** How far the vector moves toward its target each frame. */
-const LERP_RATE = 0.08;
+const LERP_RATE = 0.12;
+
+/**
+ * Read once at module scope rather than through useReducedMotion, because
+ * this is consumed inside useFrame where a hook subscription would be
+ * re-evaluated 60 times a second.
+ */
+const prefersReducedMotion =
+  typeof window !== 'undefined' &&
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/** A circle of `segments` points on the given plane, radius 1. */
+function circle(plane: 'xz' | 'xy' | 'yz', segments = 96): THREE.Vector3[] {
+  return Array.from({ length: segments + 1 }, (_, i) => {
+    const a = (i / segments) * Math.PI * 2;
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    if (plane === 'xz') return new THREE.Vector3(c, 0, s);
+    if (plane === 'xy') return new THREE.Vector3(c, s, 0);
+    return new THREE.Vector3(0, c, s);
+  });
+}
+
+/** A parallel (line of constant latitude) at the given height. */
+function parallel(height: number, segments = 96): THREE.Vector3[] {
+  const radius = Math.sqrt(Math.max(0, 1 - height * height));
+  return Array.from({ length: segments + 1 }, (_, i) => {
+    const a = (i / segments) * Math.PI * 2;
+    return new THREE.Vector3(Math.cos(a) * radius, height, Math.sin(a) * radius);
+  });
+}
 
 interface BlochVectorProps {
   x: number;
@@ -43,6 +101,9 @@ interface BlochVectorProps {
  * The obvious alternative — holding the line's endpoint in React state — costs
  * a full re-render on every animation frame for every qubit on screen, which
  * on the landing page would run for as long as the section is mounted.
+ *
+ * The rotation is the motion that explains the physics, so it lerps; under
+ * prefers-reduced-motion it snaps instead.
  */
 export function BlochVector({ x, y, z, color }: BlochVectorProps) {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -52,7 +113,7 @@ export function BlochVector({ x, y, z, color }: BlochVectorProps) {
   const current = useRef(new THREE.Vector3(0, 1, 0));
 
   useFrame(() => {
-    current.current.lerp(target, LERP_RATE);
+    current.current.lerp(target, prefersReducedMotion ? 1 : LERP_RATE);
     const { x: cx, y: cy, z: cz } = current.current;
 
     if (meshRef.current) {
@@ -77,76 +138,81 @@ export function BlochVector({ x, y, z, color }: BlochVectorProps) {
           [x, z, -y],
         ]}
         color={color}
-        lineWidth={3}
+        lineWidth={2}
       />
       <mesh ref={meshRef} position={[x, z, -y]}>
-        <sphereGeometry args={[0.06, 16, 16]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} />
+        <sphereGeometry args={[0.045, 16, 16]} />
+        <meshBasicMaterial color={color} />
       </mesh>
     </group>
   );
 }
 
-/** The translucent sphere, its wireframe, equator, axes and labels. */
+/** The sphere: drawn wireframe, equator, axes and the four basis labels. */
 export function SphereWireframe() {
-  const equator = useMemo(
-    () =>
-      Array.from({ length: 65 }, (_, i) => {
-        const angle = (i / 64) * Math.PI * 2;
-        return new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
-      }),
+  const meridians = useMemo(
+    () => [
+      // Three meridians at 60° intervals, rotated about the vertical axis.
+      { points: circle('xy'), rotation: [0, 0, 0] as const },
+      { points: circle('xy'), rotation: [0, Math.PI / 3, 0] as const },
+      { points: circle('xy'), rotation: [0, (2 * Math.PI) / 3, 0] as const },
+    ],
     [],
   );
 
+  const parallels = useMemo(() => [parallel(0.5), parallel(-0.5)], []);
+  const equator = useMemo(() => circle('xz'), []);
+
   return (
     <group>
+      {/* A barely-there fill so the far side of the wireframe reads as
+          "behind glass" rather than tangled with the near side. Warm neutral,
+          not the blue tint this replaced. */}
       <mesh>
-        <sphereGeometry args={[1, 32, 32]} />
-        <meshStandardMaterial
-          color="#4c6ef5"
+        <sphereGeometry args={[0.995, 48, 48]} />
+        <meshBasicMaterial
+          color="#12100D"
           transparent
-          opacity={0.08}
-          side={THREE.DoubleSide}
+          opacity={0.55}
+          side={THREE.BackSide}
         />
       </mesh>
 
-      <mesh>
-        <sphereGeometry args={[1.001, 16, 16]} />
-        <meshBasicMaterial color="#2a2a4a" wireframe />
-      </mesh>
+      {meridians.map((meridian, i) => (
+        <group key={`m${i}`} rotation={meridian.rotation as unknown as THREE.Euler}>
+          <Line points={meridian.points} color={C_WIRE} lineWidth={1} />
+        </group>
+      ))}
 
-      <Line points={equator} color="#3a3a5a" lineWidth={1} />
+      {parallels.map((points, i) => (
+        <Line key={`p${i}`} points={points} color={C_WIRE} lineWidth={1} />
+      ))}
 
-      <Line
-        points={[
-          [-1.3, 0, 0],
-          [1.3, 0, 0],
-        ]}
-        color="#ff6b6b"
-        lineWidth={1}
-      />
-      <Line
-        points={[
-          [0, -1.3, 0],
-          [0, 1.3, 0],
-        ]}
-        color="#51cf66"
-        lineWidth={1}
-      />
-      <Line
-        points={[
-          [0, 0, -1.3],
-          [0, 0, 1.3],
-        ]}
-        color="#5c7cfa"
-        lineWidth={1}
-      />
+      <Line points={equator} color={C_EQUATOR} lineWidth={1} />
 
-      <Text position={[1.5, 0, 0]} fontSize={0.15} color="#ff6b6b">X |+⟩</Text>
-      <Text position={[-1.5, 0, 0]} fontSize={0.15} color="#ff6b6b">-X |-⟩</Text>
-      <Text position={[0, 1.5, 0]} fontSize={0.15} color="#51cf66">Z |0⟩</Text>
-      <Text position={[0, -1.5, 0]} fontSize={0.15} color="#51cf66">-Z |1⟩</Text>
-      <Text position={[0, 0, 1.5]} fontSize={0.15} color="#5c7cfa">Y</Text>
+      {/* Axes, extending just past the surface. */}
+      <Line points={[[-1.04, 0, 0], [1.04, 0, 0]]} color={C_AXIS} lineWidth={1} />
+      <Line points={[[0, -1.04, 0], [0, 1.04, 0]]} color={C_AXIS} lineWidth={1} />
+      <Line points={[[0, 0, -1.04], [0, 0, 1.04]]} color={C_AXIS} lineWidth={1} />
+
+      {/* Labels. The computational basis is brighter than the rest: |0⟩ and
+          |1⟩ are what a measurement actually returns, and a learner locating
+          themselves on the sphere looks for the poles first. */}
+      <Text position={[0, 1.16, 0]} fontSize={0.13} color={C_LABEL_BASIS} anchorX="center">
+        |0&#10217;
+      </Text>
+      <Text position={[0, -1.16, 0]} fontSize={0.13} color={C_LABEL_BASIS} anchorX="center">
+        |1&#10217;
+      </Text>
+      <Text position={[1.16, 0, 0]} fontSize={0.12} color={C_LABEL_SUPER} anchorX="center">
+        |+&#10217;
+      </Text>
+      <Text position={[-1.16, 0, 0]} fontSize={0.12} color={C_LABEL_SUPER} anchorX="center">
+        |&#8722;&#10217;
+      </Text>
+      <Text position={[0, 0, 1.14]} fontSize={0.1} color={C_LABEL_SUPER} anchorX="center">
+        |i&#10217;
+      </Text>
     </group>
   );
 }
@@ -163,8 +229,9 @@ interface BlochSceneProps {
 export function BlochScene({ coords, autoRotate = false, colors = QUBIT_COLORS }: BlochSceneProps) {
   return (
     <>
-      <ambientLight intensity={0.4} />
-      <pointLight position={[5, 5, 5]} intensity={0.6} />
+      {/* Flat materials throughout, so no lighting rig is needed beyond a
+          fill that keeps the Text components legible. */}
+      <ambientLight intensity={1} />
 
       <SphereWireframe />
 
@@ -178,16 +245,20 @@ export function BlochScene({ coords, autoRotate = false, colors = QUBIT_COLORS }
         />
       ))}
 
-      {/* Resting |0> state so the sphere is never empty. */}
+      {/* Resting |0⟩ state so the sphere is never empty. */}
       {!coords?.length && <BlochVector x={0} y={0} z={1} color={colors[0]} />}
 
       <OrbitControls
         enableZoom
         enablePan={false}
-        minDistance={2}
+        // Declared rather than left to the default, so the sphere is centred on
+        // the origin by intent and not by whatever the controls happened to
+        // initialise to.
+        target={[0, 0, 0]}
+        minDistance={2.4}
         maxDistance={5}
-        autoRotate={autoRotate}
-        autoRotateSpeed={0.5}
+        autoRotate={autoRotate && !prefersReducedMotion}
+        autoRotateSpeed={0.4}
       />
     </>
   );
