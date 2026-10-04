@@ -13,11 +13,11 @@
  * on a landing page, and drag-and-drop doesn't work on touch at all.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { simulateSteps } from '../lib/quantumSim';
 import type { GateName, GateOperation, SimulationResult } from '../types';
-import { GATE_CATALOG } from '../types';
+import { GATE_BY_KEY, GATE_CATALOG } from '../types';
 
 /** Small enough to stay instant and readable; 4 qubits is 16 basis states. */
 export const DEMO_MIN_QUBITS = 2;
@@ -99,12 +99,42 @@ export interface DemoCircuit {
 }
 
 export function useDemoCircuit(): DemoCircuit {
-  const [gates, setGates] = useState<GateOperation[]>(DEMO_PRESETS[1].gates);
-  const [numQubits, setNumQubits] = useState(DEMO_PRESETS[1].numQubits);
+  /**
+   * Opens on Superposition rather than the Bell pair.
+   *
+   * The Bell pair is the more impressive circuit, but it is a bad *opening*
+   * state: both qubits are maximally entangled, so both Bloch vectors have
+   * length zero and sit at the origin, and the sphere panel greets a first-time
+   * visitor looking empty and broken. One Hadamard puts q0 on the equator at
+   * |+⟩ and leaves q1 at |0⟩ — two clearly visible vectors, two probability
+   * bars, every panel demonstrably alive. The Bell pair is then one click away,
+   * and arriving at it *by pressing it* is what makes the vectors visibly
+   * collapse, which is the lesson the State panel's annotation promises.
+   */
+  const OPENING_PRESET = DEMO_PRESETS[0];
+
+  const [gates, setGates] = useState<GateOperation[]>(OPENING_PRESET.gates);
+  const [numQubits, setNumQubits] = useState(OPENING_PRESET.numQubits);
   const [armedGate, setArmedGate] = useState<GateName | null>(null);
   const [pendingTargets, setPendingTargets] = useState<number[]>([]);
-  const [currentStep, setCurrentStep] = useState(DEMO_PRESETS[1].gates.length);
+  const [currentStep, setCurrentStep] = useState(OPENING_PRESET.gates.length);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  /**
+   * Latest values for the global keydown handler.
+   *
+   * The handler is bound once for the life of the component rather than
+   * re-bound whenever a gate is armed or a step changes — a window listener
+   * that detaches and reattaches on every state change is both wasteful and a
+   * source of dropped keystrokes. It reads through these refs instead, which
+   * are refreshed below on every render.
+   */
+  const armedGateRef = useRef<GateName | null>(null);
+  const numQubitsRef = useRef(numQubits);
+  const stepCountRef = useRef(1);
+  const armGateRef = useRef<(gate: GateName) => void>(() => {});
+  const placeOnQubitRef = useRef<(qubit: number) => void>(() => {});
+  const togglePlaybackRef = useRef<() => void>(() => {});
 
   // Cheap enough to recompute on every edit: at most 12 gates over 16
   // amplitudes. Memoised only to keep the sampled measurement counts stable
@@ -140,18 +170,85 @@ export function useDemoCircuit(): DemoCircuit {
     setPendingTargets([]);
   }, []);
 
-  // Escape cancels an in-progress placement — expected of any modal-ish
-  // interaction, and the only way out for keyboard users.
+  /**
+   * Keyboard control for the console.
+   *
+   * The instrument is meant to be playable without a mouse, so the keypad's
+   * engraved shortcuts are real: h/x/y/z/s/t arm a gate, 2 and 3 arm CX and
+   * CCX, 0-3 place the armed gate on a wire, arrow keys scrub the transport,
+   * space plays, escape cancels a placement in progress.
+   *
+   * Guarded against firing while the visitor is typing a question to the
+   * tutor, which sits in the same section: a global 'h' handler that eats
+   * every h typed into a text field would be a genuinely bad bug.
+   */
   useEffect(() => {
-    if (!armedGate) return;
-
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') cancelPlacement();
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      // Leave browser and OS shortcuts alone.
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      if (event.key === 'Escape') {
+        cancelPlacement();
+        return;
+      }
+
+      // Scrubbing. Shift jumps to either end of the circuit.
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        setIsPlaying(false);
+        setCurrentStep((step) => (event.shiftKey ? 0 : Math.max(0, step - 1)));
+        return;
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        setIsPlaying(false);
+        setCurrentStep((step) =>
+          event.shiftKey ? stepCountRef.current - 1 : Math.min(stepCountRef.current - 1, step + 1),
+        );
+        return;
+      }
+
+      if (event.key === ' ' || event.key === 'Spacebar') {
+        event.preventDefault();
+        togglePlaybackRef.current();
+        return;
+      }
+
+      const lower = event.key.toLowerCase();
+
+      // Digits place the armed gate on a wire. Checked before the gate
+      // shortcuts because '2' and '3' mean both things, and placing beats
+      // arming while a gate is already waiting for its targets.
+      if (armedGateRef.current && /^[0-9]$/.test(lower)) {
+        const qubit = Number(lower);
+        if (qubit < numQubitsRef.current) {
+          event.preventDefault();
+          placeOnQubitRef.current(qubit);
+          return;
+        }
+      }
+
+      const gate = GATE_BY_KEY[lower];
+      if (gate) {
+        event.preventDefault();
+        armGateRef.current(gate);
+      }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [armedGate, cancelPlacement]);
+  }, [cancelPlacement]);
 
   const isFull = gates.length >= DEMO_MAX_GATES;
 
@@ -259,6 +356,13 @@ export function useDemoCircuit(): DemoCircuit {
     if (pendingTargets.length === 1) return `${info.symbol}: click the second control qubit`;
     return `${info.symbol}: click the target qubit (${remaining} left)`;
   }, [armedGate, pendingTargets]);
+
+  armedGateRef.current = armedGate;
+  numQubitsRef.current = numQubits;
+  stepCountRef.current = steps.length;
+  armGateRef.current = armGate;
+  placeOnQubitRef.current = placeOnQubit;
+  togglePlaybackRef.current = togglePlayback;
 
   const safeStep = Math.min(currentStep, steps.length - 1);
 
