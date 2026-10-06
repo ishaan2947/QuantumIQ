@@ -1,283 +1,205 @@
 /**
- * Landing hero — a split composition: copy on the left, the cryostat on the
- * right, running the full height of the section.
+ * The opening.
  *
- * Why split rather than a full-bleed background image. The photograph is a
- * dilution refrigerator: a tall, vertically symmetric object shot at 3000x4000
- * against near-black. Stretching that behind full-width text would crop it to
- * a horizontal band of coils and throw away the silhouette, which is the whole
- * reason the image reads as "quantum computer" at a glance. Giving it its own
- * column preserves the subject intact and leaves the copy on flat background
- * where it needs no scrim to stay legible.
+ * What it is NOT, deliberately: a pill badge with a dot, a gradient headline,
+ * a glowing CTA next to an outlined one, a particle field, or a slogan. All of
+ * those were here before and all of them are on the diagnosis list.
  *
- * The image's own background is near-black, so instead of laying a dark
- * gradient over the photo we fade its edges into the page background. The
- * hardware appears to emerge from the page rather than sitting in a rectangle
- * on top of it — there is no visible photo edge anywhere.
+ * What it is: a nameplate, a plain statement of what the thing does, one solid
+ * button, and the hardware. The photograph is a dilution refrigerator —
+ * portrait, vertically symmetric, shot against near-black — so it gets its own
+ * column and keeps its silhouette rather than being cropped to a horizontal
+ * band behind full-width text. Its own background is near-black, so instead of
+ * laying a scrim over it we fade its edges into the page: the hardware appears
+ * to emerge from the page rather than sitting in a rectangle on top of it.
  *
- * Palette note: the hardware is copper and the interface is cyan. That is the
- * complementary pairing on purpose — the warm subject is the only warm thing
- * on the page, so the eye goes to it, and the cool UI stays clearly separate
- * from the photography.
+ * On a phone the photograph becomes a band above the copy rather than a layer
+ * behind it. The first pass put the copy over the image at every size and
+ * leaned on a heavy scrim, and the body text crossed the bright coils at
+ * contrast that did not hold up.
+ *
+ * The strip along the bottom is the structural idea the whole design hangs on
+ * (DESIGN.md §1): a dilution refrigerator is a stack of horizontal gold
+ * plates, and a circuit diagram is a stack of horizontal wires. The hero hands
+ * off to the console below by simply starting the wires here.
  */
 
-import { useMemo, useRef } from 'react';
-import { motion, useReducedMotion, useTransform } from 'framer-motion';
-import { ArrowRight, Github } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
+import { ArrowDown } from 'lucide-react';
 
-import { usePointerParallax } from '../../lib/useParallax';
 import { GITHUB_REPO_URL } from '../../config/env';
 
-/**
- * Deterministic PRNG so particle positions are identical on every render and
- * every build. Math.random() here would reshuffle the field on each re-render,
- * which is visible as a flicker.
- */
-function mulberry32(seed: number) {
-  return () => {
-    seed |= 0;
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+/** The nameplate line: a specification, not a marketing badge. */
+const SPEC = ['QuantumIQ', 'Statevector simulator', 'Browser-side', 'No sign-up'];
 
-/**
- * Sparse motes drifting around the hardware, warm to match the copper.
- *
- * Two layers rather than the usual three, and low counts: against a mostly
- * black frame every mote is visible, and a dense field would read as dust on
- * the lens instead of depth.
- */
-const PARTICLE_LAYERS = [
-  { travel: 12, count: 7, size: [1.5, 2.5], opacity: 0.35, seed: 1337 },
-  { travel: 30, count: 4, size: [2.5, 4], opacity: 0.5, seed: 4242 },
-] as const;
+const EASE = [0.2, 0, 0, 1] as const;
 
-type Parallax = ReturnType<typeof usePointerParallax>;
-
-function ParticleField({
-  layer,
-  px,
-  py,
-}: {
-  layer: (typeof PARTICLE_LAYERS)[number];
-  px: Parallax['px'];
-  py: Parallax['py'];
-}) {
-  const particles = useMemo(() => {
-    const random = mulberry32(layer.seed);
-    return Array.from({ length: layer.count }, (_, i) => ({
-      id: i,
-      left: 12 + random() * 76,
-      top: 15 + random() * 70,
-      size: layer.size[0] + random() * (layer.size[1] - layer.size[0]),
-      delay: random() * 6,
-      duration: 7 + random() * 6,
-    }));
-  }, [layer]);
-
-  const x = useTransform(px, (v) => v * -layer.travel);
-  const y = useTransform(py, (v) => v * -layer.travel * 0.6);
-
-  return (
-    <motion.div
-      aria-hidden
-      style={{ x, y }}
-      className="parallax-layer pointer-events-none absolute inset-0"
-    >
-      {particles.map((p) => (
-        <span
-          key={p.id}
-          className="animate-twinkle absolute rounded-full"
-          style={{
-            left: `${p.left}%`,
-            top: `${p.top}%`,
-            width: p.size,
-            height: p.size,
-            opacity: layer.opacity,
-            backgroundColor: '#fbbf7a',
-            boxShadow: `0 0 ${p.size * 3}px ${p.size}px rgba(251, 146, 60, 0.3)`,
-            animationDelay: `${p.delay}s`,
-            animationDuration: `${p.duration}s`,
-          }}
-        />
-      ))}
-    </motion.div>
-  );
-}
-
-const fadeUp = {
-  hidden: { opacity: 0, y: 22 },
+const rise = {
+  hidden: { opacity: 0, y: 14 },
   visible: { opacity: 1, y: 0 },
 };
 
-const EASE = [0.22, 1, 0.36, 1] as const;
-
 export default function Hero() {
-  const heroRef = useRef<HTMLElement>(null);
-  const { px, py } = usePointerParallax(heroRef);
   const prefersReducedMotion = useReducedMotion();
 
-  // The hardware drifts slightly against the pointer. Small numbers on
-  // purpose: this should register as the object having depth, not as the page
-  // moving underneath the reader.
-  const imageX = useTransform(px, (v) => v * -20);
-  const imageY = useTransform(py, (v) => v * -14);
+  // Under reduced motion the stagger is skipped entirely rather than being
+  // run faster: content renders where it belongs, immediately.
+  const container = prefersReducedMotion
+    ? {}
+    : {
+        initial: 'hidden' as const,
+        animate: 'visible' as const,
+        transition: { staggerChildren: 0.07, delayChildren: 0.04 },
+      };
 
-  // A warm pool of light behind the cryostat, drifting the opposite way, so
-  // the object appears to sit in front of its own glow.
-  const glowX = useTransform(px, (v) => v * 26);
-  const glowY = useTransform(py, (v) => v * 18);
+  const item = prefersReducedMotion
+    ? {}
+    : { variants: rise, transition: { duration: 0.56, ease: EASE } };
 
   return (
-    <section ref={heroRef} id="top" className="relative isolate overflow-hidden bg-ink-950">
-      {/* Warm ambient pool behind the hardware.
-          Lives at section level rather than inside the image column: it needs
-          to spill left past the column edge to read as ambient light, and the
-          column below clips its own contents. */}
-      {!prefersReducedMotion && (
-        <motion.div
-          aria-hidden
-          style={{ x: glowX, y: glowY }}
-          className="pointer-events-none absolute inset-y-0 right-0 w-full lg:w-[62%]"
-        >
-          <div
-            className="absolute left-1/2 top-1/2 h-[46rem] w-[46rem] -translate-x-1/2 -translate-y-1/2 rounded-full"
-            style={{
-              background:
-                'radial-gradient(circle, rgba(251,146,60,0.13) 0%, rgba(234,88,12,0.05) 42%, transparent 70%)',
-            }}
+    <section id="top" className="relative isolate overflow-hidden bg-void">
+      {/* ── The hardware ─────────────────────────────────────────────────
+          Two layouts, because the photograph cannot do the same job at both
+          sizes. From lg it takes the right half and the copy sits beside it on
+          flat ground. On a phone it becomes a band *above* the copy instead of
+          lying behind it: there is no scrim dark enough to carry body text over
+          those coils while leaving the hardware worth looking at, so it stops
+          trying to do both jobs with one layer. */}
+      <div
+        className="relative h-[38vh] min-h-[15rem] w-full overflow-hidden
+                   lg:absolute lg:inset-0 lg:left-[50%] lg:h-auto lg:min-h-0 lg:w-auto"
+      >
+        <picture>
+          <source srcSet="/cryostat.webp" type="image/webp" />
+          <img
+            src="/cryostat.jpg"
+            alt="A dilution refrigerator: the layered copper and steel assembly that cools a quantum processor to near absolute zero"
+            className="h-full w-full object-cover object-[50%_22%]"
+            decoding="async"
           />
-        </motion.div>
-      )}
+        </picture>
 
-      {/* ── Image column ──────────────────────────────────────────────
-          Full-bleed behind the copy on mobile (the portrait aspect suits a
-          phone), pinned to the right side from lg up.
+        {/* Edge masking. The source is already near-black at its borders, so
+            fading to the page background makes the hardware emerge from the page
+            instead of ending at a photo edge.
 
-          overflow-hidden is load-bearing: without it the parallax translate
-          slides the image past the column's left edge and paints a hairline
-          seam down the middle of the page. */}
-      <div className="absolute inset-0 overflow-hidden lg:left-[46%]">
-        <motion.div
-          style={{ x: imageX, y: imageY }}
-          // scale must exceed the parallax travel or the translate exposes the
-          // container edge. At 1.12 the image overhangs ~6% each side, far
-          // more than the 20px it ever moves. The source is 1600px shown at
-          // ~1080px, so this is still downscaling -- no sharpness cost.
-          className="parallax-layer absolute inset-0 scale-[1.12]"
-        >
-          <picture>
-            <source srcSet="/cryostat.webp" type="image/webp" />
-            <img
-              src="/cryostat.jpg"
-              alt="A dilution refrigerator — the layered copper and steel assembly that cools a quantum processor to near absolute zero"
-              className="h-full w-full object-cover object-[center_38%] lg:object-[42%_center]"
-              decoding="async"
-            />
-          </picture>
-        </motion.div>
-
-        {/*
-          Edge masking. The source is already near-black at its borders, so
-          fading to the page background makes the hardware emerge from the page
-          instead of ending at a photo edge. On mobile the same gradient doubles
-          as the scrim that keeps the copy readable over the image.
-        */}
+            Horizontal fade is desktop-only — on the mobile band there is no copy
+            column to the left to fade towards, and applying it there just washes
+            the image out. */}
         <div
           aria-hidden
-          className="absolute inset-0 bg-gradient-to-r from-ink-950 via-ink-950/75 to-ink-950/25 lg:via-ink-950/15 lg:via-25% lg:to-transparent"
+          className="absolute inset-0 hidden lg:block lg:bg-gradient-to-r lg:from-void
+                     lg:via-void/20 lg:via-20% lg:to-transparent"
         />
+        {/* Vertical fade. On mobile this dissolves the band's lower edge into
+            the copy beneath it, so there is no visible photo edge anywhere. */}
         <div
           aria-hidden
-          className="absolute inset-0 bg-gradient-to-t from-ink-950 via-transparent to-ink-950/60"
+          className="absolute inset-0 bg-gradient-to-t from-void from-2% via-transparent to-void/70"
         />
-        <div
-          aria-hidden
-          className="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-ink-950 to-transparent"
-        />
+
+        {/* Grain, so the photograph and the flat UI read as one material rather
+            than a render pasted onto a page. Scoped to the image wrapper: on
+            mobile the copy is no longer over the image and should not be
+            textured. */}
+        <div aria-hidden className="grain absolute inset-0" />
       </div>
 
-      {/* Grain, tying the photographic layer to the flat UI so the two don't
-          read as separate materials. */}
-      <div aria-hidden className="hero-grain absolute inset-0" />
-
-      {!prefersReducedMotion &&
-        PARTICLE_LAYERS.map((layer) => (
-          <ParticleField key={layer.seed} layer={layer} px={px} py={py} />
-        ))}
-
-      {/* ── Copy ──────────────────────────────────────────────────────── */}
-      <div className="relative mx-auto flex min-h-[44rem] max-w-7xl items-center px-6 py-28 lg:min-h-[92vh] lg:px-10">
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          transition={{ staggerChildren: 0.1, delayChildren: 0.05 }}
-          className="max-w-xl"
-        >
-          <motion.div
-            variants={fadeUp}
-            transition={{ duration: 0.6, ease: EASE }}
-            className="mb-7 inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-xs font-medium tracking-wide text-gray-300 backdrop-blur-sm"
-          >
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-glow-300 opacity-75" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-glow-300" />
-            </span>
-            Agentic AI tutor · Qiskit simulation · Live demo
+      {/* ── Copy ───────────────────────────────────────────────────────── */}
+      <div className="relative mx-auto max-w-console px-4 pb-24 pt-7 sm:px-6 sm:pb-28 sm:pt-9 lg:px-8 lg:pb-36 lg:pt-36">
+        <motion.div {...container} className="max-w-[34rem] lg:max-w-[38rem] xl:max-w-[44rem]">
+          {/* Nameplate. Mono, letterspaced, under a hairline — stamped on a
+              faceplate rather than floating in a pill. */}
+          <motion.div {...item} className="mb-7 border-t border-rule-strong pt-3">
+            <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-micro uppercase text-ink-tertiary">
+              {SPEC.map((entry, i) => (
+                <span key={entry} className="flex items-center gap-2.5">
+                  {i > 0 && (
+                    <span aria-hidden className="text-ink-faint">
+                      ·
+                    </span>
+                  )}
+                  {entry}
+                </span>
+              ))}
+            </p>
           </motion.div>
 
+          {/* Each sentence is its own block so the break never lands
+              mid-sentence, and text-balance evens the two lines it wraps to on
+              a phone rather than leaving a one-word orphan. Sizes are tuned so
+              both sentences hold a single line from lg up. */}
           <motion.h1
-            variants={fadeUp}
-            transition={{ duration: 0.7, ease: EASE }}
-            className="text-gradient-quantum text-6xl font-bold leading-[0.95] tracking-tight sm:text-7xl lg:text-[5.5rem]"
+            {...item}
+            className="font-display text-[2rem] font-bold leading-[1.05] tracking-[-0.025em]
+                       text-ink-primary sm:text-[2.5rem] lg:text-[2.75rem] lg:leading-none
+                       lg:tracking-[-0.03em] xl:text-[3.25rem]"
           >
-            QuantumIQ
+            <span className="block text-balance">Build a quantum circuit.</span>
+            <span className="block text-balance">Watch the state move.</span>
           </motion.h1>
 
           <motion.p
-            variants={fadeUp}
-            transition={{ duration: 0.7, ease: EASE }}
-            className="mt-6 text-lg leading-relaxed text-gray-300/90 sm:text-xl"
+            {...item}
+            className="mt-6 max-w-prose text-body leading-relaxed text-ink-secondary"
           >
-            Learn quantum computing through an interactive AI tutor and live
-            circuit simulator.
+            A statevector simulator that runs in this tab, a live Bloch sphere,
+            and a tutor that can read the circuit you built. Place gates, then
+            scrub through the circuit one time step at a time and watch the
+            probabilities redistribute.
           </motion.p>
 
-          <motion.div
-            variants={fadeUp}
-            transition={{ duration: 0.7, ease: EASE }}
-            className="mt-10 flex flex-wrap items-center gap-4"
-          >
-            <a
-              href="#demo"
-              className="group inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-glow-400 to-quantum-500 px-7 py-3.5 text-sm font-semibold text-ink-950 shadow-glow-md outline-none transition-shadow duration-300 hover:shadow-glow-lg focus-visible:ring-2 focus-visible:ring-glow-300 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950"
-            >
-              Try the Demo
-              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+          <motion.div {...item} className="mt-9 flex flex-wrap items-center gap-x-7 gap-y-4">
+            <a href="#console" className="btn-primary">
+              Open the console
+              <ArrowDown className="h-3.5 w-3.5" />
             </a>
 
             <a
               href={GITHUB_REPO_URL}
               target="_blank"
               rel="noreferrer noopener"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/[0.04] px-6 py-3.5 text-sm font-medium text-gray-200 backdrop-blur-sm outline-none hover:border-white/25 hover:bg-white/[0.07] focus-visible:ring-2 focus-visible:ring-glow-300"
+              className="btn-quiet"
             >
-              <Github className="h-4 w-4" />
-              View on GitHub
+              Source on GitHub
             </a>
           </motion.div>
 
-          <motion.p
-            variants={fadeUp}
-            transition={{ duration: 0.7, ease: EASE }}
-            className="mt-7 text-sm text-gray-500"
+          {/* A plate caption for the photograph beside it. Set here rather than
+              over the image: the body text crossed the bright coils there and
+              fell below AA, and a caption you cannot read is decoration. */}
+          <motion.figcaption
+            {...item}
+            className="mt-12 max-w-[21rem] border-l border-copper-700 pl-3.5"
           >
-            No signup required — the simulator runs entirely in your browser.
-          </motion.p>
+            <span className="block font-mono text-[10px] uppercase tracking-[0.14em] text-copper-300">
+              Dilution refrigerator
+            </span>
+            <span className="mt-1 block text-[11px] leading-relaxed text-ink-tertiary">
+              Each gold plate is a colder stage. The processor hangs at the
+              bottom, near 10&nbsp;mK — colder than deep space.
+            </span>
+          </motion.figcaption>
         </motion.div>
+      </div>
+
+      {/* ── Handoff ────────────────────────────────────────────────────
+          The wires start here and the console picks them up. Two qubits,
+          labelled, fading in from the left — the same stack the plates above
+          are drawn in. */}
+      <div aria-hidden className="absolute inset-x-0 bottom-0">
+        <div className="mx-auto max-w-console px-4 sm:px-6 lg:px-8">
+          <div className="space-y-5 pb-6">
+            {[0, 1].map((qubit) => (
+              <div key={qubit} className="flex items-center gap-3">
+                <span className="w-gutter flex-shrink-0 font-mono text-readout-sm text-ink-faint">
+                  |q{qubit}⟩
+                </span>
+                <span className="rule-fade-r h-px flex-1" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </section>
   );
