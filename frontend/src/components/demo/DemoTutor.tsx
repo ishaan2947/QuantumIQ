@@ -1,5 +1,11 @@
 /**
- * The rate-limited AI tutor demo.
+ * The rate-limited AI tutor.
+ *
+ * Presented as the lab notebook attached to the instrument rather than a chat
+ * widget: no avatars, no speech bubbles. A question is a `>` prompt line in
+ * mono; an answer is prose set against a copper rule. The remaining-message
+ * allowance is a segmented meter in the nameplate, because that is how an
+ * instrument reports a finite resource.
  *
  * Message accounting happens twice, on purpose:
  *
@@ -16,8 +22,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, Bot, Github, Send, Sparkles, User } from 'lucide-react';
+import { Send } from 'lucide-react';
 
 import {
   DemoLimitError,
@@ -40,8 +45,8 @@ const COLD_START_HINT_MS = 4000;
 
 const STARTER_PROMPTS = [
   'What does my circuit do?',
-  'Why is the Bloch vector shorter when qubits are entangled?',
-  'How do I make a GHZ state?',
+  'Why do the Bloch vectors shrink when qubits are entangled?',
+  'How do I build a GHZ state?',
 ];
 
 interface ChatTurn {
@@ -52,8 +57,64 @@ interface ChatTurn {
 const GREETING: ChatTurn = {
   role: 'assistant',
   content:
-    "Hi — I'm the QuantumIQ tutor. I can see the circuit you've built on the left, so ask me about it: what it does, why the probabilities look like that, or what to try next.",
+    "I can see the circuit on the left, gate by gate. Ask me what it does, why the probabilities came out that way, or what to try next.",
 };
+
+/**
+ * The allowance meter: one segment per message, spent segments going dark.
+ * An instrument reports a finite resource as a gauge, not as a badge.
+ */
+function AllowanceMeter({ used, limit }: { used: number; limit: number }) {
+  // Guard against a server-side limit large enough to turn the nameplate into
+  // a barcode; past a handful of segments the number carries it alone.
+  if (limit > 10) {
+    return (
+      <span className="font-mono text-readout-sm text-ink-tertiary">
+        {Math.max(0, limit - used)} / {limit} left
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-2" title={`${Math.max(0, limit - used)} of ${limit} messages left`}>
+      <span aria-hidden className="flex gap-[3px]">
+        {Array.from({ length: limit }).map((_, i) => (
+          <span
+            key={i}
+            className={`h-2.5 w-1 rounded-tight transition-colors duration-state ease-instrument ${
+              i < limit - used ? 'bg-copper-400' : 'bg-rule-strong'
+            }`}
+          />
+        ))}
+      </span>
+      <span className="font-mono text-readout-sm text-ink-tertiary">
+        {Math.max(0, limit - used)}/{limit}
+      </span>
+    </span>
+  );
+}
+
+/** A status strip: honest, inline, styled as a readout rather than an alert. */
+function StatusStrip({
+  tone = 'neutral',
+  children,
+}: {
+  tone?: 'neutral' | 'warn' | 'error';
+  children: React.ReactNode;
+}) {
+  const border =
+    tone === 'error'
+      ? 'border-signal-dim'
+      : tone === 'warn'
+        ? 'border-copper-600'
+        : 'border-rule-strong';
+
+  return (
+    <div className={`readout-well border-l-2 ${border} px-3.5 py-2.5`}>
+      <div className="text-small leading-relaxed text-ink-secondary">{children}</div>
+    </div>
+  );
+}
 
 interface DemoTutorProps {
   gates: GateOperation[];
@@ -108,7 +169,8 @@ export default function DemoTutor({ gates, numQubits }: DemoTutorProps) {
       if (!status.enabled) {
         setNotice({
           type: 'unconfigured',
-          message: 'The demo tutor is offline on this deployment, but the simulator above is fully live.',
+          message:
+            'The tutor is offline on this deployment. Everything to the left runs in your browser and is unaffected.',
         });
       }
     });
@@ -190,215 +252,169 @@ export default function DemoTutor({ gates, numQubits }: DemoTutorProps) {
   };
 
   return (
-    <div className="edge-highlight relative flex h-full min-h-[30rem] flex-col overflow-hidden rounded-2xl border border-ink-700/80 bg-ink-900/70 backdrop-blur-sm">
-      {/* ── Header ───────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between border-b border-ink-700/60 px-5 py-3.5">
-        <div className="flex items-center gap-2.5">
-          <span className="relative flex h-7 w-7 items-center justify-center rounded-lg border border-glow-400/30 bg-glow-400/10">
-            <Sparkles className="h-3.5 w-3.5 text-glow-300" />
-          </span>
-          <div>
-            <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-400">
-              AI Tutor
-            </h3>
-            <p className="text-[11px] text-gray-600">gpt-4o-mini · circuit-aware</p>
-          </div>
+    <div className="flex h-full min-h-[32rem] flex-col">
+      {/* ── Nameplate ──────────────────────────────────────────────────── */}
+      <div className="nameplate">
+        <div className="flex items-baseline gap-2.5">
+          <span className="font-mono text-micro text-copper-400">04</span>
+          <span className="nameplate-label">Tutor</span>
         </div>
 
         {backend === 'warming' ? (
-          <div className="flex items-center gap-2 rounded-full border border-glow-400/25 bg-glow-400/[0.07] px-3 py-1 text-[11px] font-medium text-glow-200">
-            <motion.span
-              className="h-1.5 w-1.5 rounded-full bg-glow-300"
-              animate={{ opacity: [0.3, 1, 0.3] }}
-              transition={{ duration: 1.2, repeat: Infinity }}
-            />
-            Waking up
-          </div>
+          <span className="font-mono text-readout-sm text-ink-tertiary">waking…</span>
         ) : (
-          <div
-            className={`rounded-full border px-3 py-1 text-[11px] font-medium ${
-              exhausted
-                ? 'border-amber-400/30 bg-amber-400/10 text-amber-200'
-                : 'border-glow-400/25 bg-glow-400/[0.07] text-glow-200'
-            }`}
-          >
-            {remaining} / {limit} left
-          </div>
+          <AllowanceMeter used={used} limit={limit} />
         )}
       </div>
 
-      {/* ── Transcript ───────────────────────────────────────────── */}
-      <div ref={listRef} className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-        {messages.map((turn, index) => (
-          <motion.div
-            key={index}
-            initial={index === 0 ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
-            className={`flex gap-3 ${turn.role === 'user' ? 'flex-row-reverse' : ''}`}
-          >
-            <span
-              className={`mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border ${
-                turn.role === 'user'
-                  ? 'border-quantum-500/30 bg-quantum-500/10 text-quantum-300'
-                  : 'border-glow-400/25 bg-glow-400/10 text-glow-300'
-              }`}
-            >
-              {turn.role === 'user' ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
-            </span>
+      <p className="border-b border-rule px-4 py-2.5 text-small text-ink-secondary">
+        It receives the circuit you just built, gate by gate — so "what does
+        this do?" is a question about <em className="not-italic text-ink-primary">your</em> circuit.
+      </p>
 
-            <div
-              className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
-                turn.role === 'user'
-                  ? 'bg-quantum-600/20 text-gray-100'
-                  : 'bg-ink-800/80 text-gray-300'
-              }`}
-            >
-              {turn.role === 'assistant' ? (
-                <div className="prose-demo space-y-2">
-                  <ReactMarkdown
-                    components={{
-                      p: ({ children }) => <p className="m-0">{children}</p>,
-                      strong: ({ children }) => (
-                        <strong className="font-semibold text-gray-100">{children}</strong>
-                      ),
-                      code: ({ children }) => (
-                        <code className="quantum-notation rounded bg-ink-950/70 px-1 py-0.5 text-[0.85em] text-glow-200">
-                          {children}
-                        </code>
-                      ),
-                      ul: ({ children }) => (
-                        <ul className="m-0 list-disc space-y-1 pl-4">{children}</ul>
-                      ),
-                      ol: ({ children }) => (
-                        <ol className="m-0 list-decimal space-y-1 pl-4">{children}</ol>
-                      ),
-                      a: ({ children, href }) => (
-                        <a
-                          href={href}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className="text-glow-300 underline underline-offset-2"
-                        >
-                          {children}
-                        </a>
-                      ),
-                    }}
-                  >
-                    {turn.content}
-                  </ReactMarkdown>
-                </div>
-              ) : (
-                turn.content
-              )}
-            </div>
-          </motion.div>
-        ))}
+      {/* ── Transcript ───────────────────────────────────────────────────
+          A notebook, not a chat log: questions are `>` prompt lines, answers
+          are prose against a copper rule. */}
+      <div
+        ref={listRef}
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4"
+      >
+        {/* A transcript grows from the bottom. Without this spacer the panel —
+            which runs the full height of the console on desktop — opens with
+            one greeting marooned at the top of a tall empty column. A leading
+            flex-1 spacer pushes content to the bottom while keeping the
+            container a normal scroller once the conversation outgrows it;
+            `justify-end` alone breaks scrolling in some engines. */}
+        <div aria-hidden className="min-h-0 flex-1" />
 
-        {backend === 'warming' && messages.length === 1 && (
-          <div className="rounded-xl border border-ink-700/70 bg-ink-800/50 px-4 py-3">
-            <p className="text-[11px] leading-relaxed text-gray-500">
-              The demo backend sleeps when idle to stay on free hosting, so the
-              tutor takes up to a minute to wake on the first visit. Everything
-              to the left — the circuit, the Bloch sphere, the measurements —
-              runs in your browser and works right now.
+        <div className="space-y-4">
+        {messages.map((turn, index) =>
+          turn.role === 'user' ? (
+            <p
+              key={index}
+              className="flex gap-2 font-mono text-readout leading-relaxed text-copper-200"
+            >
+              <span aria-hidden className="select-none text-copper-500">
+                &gt;
+              </span>
+              <span>{turn.content}</span>
             </p>
-          </div>
+          ) : (
+            <div
+              key={index}
+              className="border-l border-copper-700 pl-3.5 text-small leading-relaxed text-ink-secondary"
+            >
+              <ReactMarkdown
+                components={{
+                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                  strong: ({ children }) => (
+                    <strong className="font-medium text-ink-primary">{children}</strong>
+                  ),
+                  code: ({ children }) => (
+                    <code className="font-mono text-[0.9em] text-copper-200">{children}</code>
+                  ),
+                  ul: ({ children }) => (
+                    <ul className="mb-2 list-disc space-y-1 pl-4 last:mb-0">{children}</ul>
+                  ),
+                  ol: ({ children }) => (
+                    <ol className="mb-2 list-decimal space-y-1 pl-4 last:mb-0">{children}</ol>
+                  ),
+                  a: ({ children, href }) => (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="text-copper-300 underline underline-offset-2"
+                    >
+                      {children}
+                    </a>
+                  ),
+                }}
+              >
+                {turn.content}
+              </ReactMarkdown>
+            </div>
+          ),
+        )}
+
+        {/* ── Honest states ──────────────────────────────────────────────
+            Each one says what is down, what still works, and what to do. */}
+        {backend === 'warming' && messages.length === 1 && (
+          <StatusStrip>
+            The tutor's backend sleeps when idle to stay on free hosting, so the
+            first reply can take up to a minute. The circuit, the sphere and the
+            measurements run in your browser and work right now.
+          </StatusStrip>
         )}
 
         {backend === 'asleep' && messages.length === 1 && (
-          <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.06] px-4 py-3">
-            <p className="text-[11px] leading-relaxed text-gray-400">
-              The tutor backend isn't responding right now. The simulator, Bloch
-              sphere and measurements are unaffected — they run entirely in your
-              browser. Send a message to retry.
-            </p>
-          </div>
+          <StatusStrip tone="warn">
+            The tutor isn't responding. Everything else on this console is
+            unaffected — it runs entirely in your browser. Send a message to retry.
+          </StatusStrip>
         )}
 
         {isSending && (
-          <div className="flex gap-3">
-            <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border border-glow-400/25 bg-glow-400/10 text-glow-300">
-              <Bot className="h-3.5 w-3.5" />
+          <div className="border-l border-copper-700 pl-3.5">
+            {/* A sweep rather than bouncing dots: the instrument is busy. */}
+            <span
+              aria-hidden
+              className="relative block h-px w-16 overflow-hidden bg-rule-strong"
+            >
+              <span className="absolute inset-y-0 w-4 animate-sweep bg-copper-400" />
             </span>
-            <div className="rounded-xl bg-ink-800/80 px-3.5 py-3">
-              <span className="flex gap-1.5">
-                {[0, 1, 2].map((dot) => (
-                  <motion.span
-                    key={dot}
-                    className="h-1.5 w-1.5 rounded-full bg-glow-300"
-                    animate={{ opacity: [0.25, 1, 0.25] }}
-                    transition={{ duration: 1.1, repeat: Infinity, delay: dot * 0.18 }}
-                  />
-                ))}
-              </span>
-              {showColdStartHint && (
-                <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
-                  The demo backend sleeps when idle — the first reply can take up to a
-                  minute while it wakes.
-                </p>
-              )}
-            </div>
+            <span className="sr-only">The tutor is thinking…</span>
+            {showColdStartHint && (
+              <p className="mt-2.5 text-small leading-relaxed text-ink-tertiary">
+                Still waking the backend — the first reply after an idle period can
+                take up to a minute.
+              </p>
+            )}
           </div>
         )}
 
-        {/* ── Limit / error notice ───────────────────────────────── */}
-        <AnimatePresence>
-          {(exhausted || notice) && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className={`rounded-xl border px-4 py-3.5 ${
-                exhausted || notice?.type !== 'error'
-                  ? 'border-glow-400/25 bg-glow-400/[0.06]'
-                  : 'border-red-400/25 bg-red-400/[0.06]'
-              }`}
-            >
-              <div className="flex gap-3">
-                <AlertCircle
-                  className={`mt-0.5 h-4 w-4 flex-shrink-0 ${
-                    exhausted || notice?.type !== 'error' ? 'text-glow-300' : 'text-red-300'
-                  }`}
-                />
-                <div className="text-sm">
-                  {exhausted ? (
-                    <>
-                      <p className="leading-relaxed text-gray-200">
-                        You've hit the demo limit — clone the repo and run it with your
-                        own OpenAI key for unlimited use.
-                      </p>
-                      <a
-                        href={GITHUB_REPO_URL}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="mt-2.5 inline-flex items-center gap-2 rounded-lg border border-glow-400/30 bg-glow-400/10 px-3 py-1.5 text-xs font-medium text-glow-200 outline-none hover:bg-glow-400/20 focus-visible:ring-2 focus-visible:ring-glow-300"
-                      >
-                        <Github className="h-3.5 w-3.5" />
-                        Clone QuantumIQ on GitHub
-                      </a>
-                    </>
-                  ) : (
-                    <p className="leading-relaxed text-gray-300">{notice?.message}</p>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {(exhausted || notice) && (
+          <StatusStrip tone={notice?.type === 'error' ? 'error' : 'warn'}>
+            {exhausted ? (
+              <>
+                <p>
+                  That's the {limit}-message demo allowance. Clone the repo and run
+                  it with your own key for the full agent — tool calling, progress
+                  tracking, no cap.
+                </p>
+                <a
+                  href={GITHUB_REPO_URL}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="btn-quiet mt-2.5"
+                >
+                  Clone QuantumIQ
+                </a>
+              </>
+            ) : (
+              notice?.message
+            )}
+          </StatusStrip>
+        )}
+        </div>
       </div>
 
-      {/* ── Starter prompts ──────────────────────────────────────── */}
+      {/* ── Starter prompts ──────────────────────────────────────────────
+          Understated text links, not a row of bordered chips. */}
       {messages.length === 1 && !blocked && (
-        <div className="flex flex-wrap gap-2 px-5 pb-1">
+        <div className="flex flex-col items-start gap-1.5 border-t border-rule px-4 py-3">
+          <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-ink-faint">
+            Try asking
+          </span>
           {STARTER_PROMPTS.map((prompt) => (
             <button
               key={prompt}
               type="button"
               onClick={() => void send(prompt)}
               disabled={isSending}
-              className="rounded-lg border border-ink-700 bg-ink-800/60 px-3 py-1.5 text-[11px] text-gray-400 outline-none transition-colors hover:border-glow-400/40 hover:text-glow-200 focus-visible:ring-1 focus-visible:ring-glow-300 disabled:opacity-40"
+              className="text-left text-small text-ink-secondary underline decoration-rule-strong
+                         underline-offset-4 transition-colors duration-state ease-instrument
+                         hover:decoration-copper-400 hover:text-copper-200 disabled:opacity-40"
             >
               {prompt}
             </button>
@@ -406,26 +422,32 @@ export default function DemoTutor({ gates, numQubits }: DemoTutorProps) {
         </div>
       )}
 
-      {/* ── Composer ─────────────────────────────────────────────── */}
-      <form onSubmit={handleSubmit} className="border-t border-ink-700/60 p-4">
-        <div className="flex items-end gap-2">
-          <div className="relative flex-1">
+      {/* ── Composer ─────────────────────────────────────────────────────
+          A prompt line: the `>` lives inside the well, so typing a question
+          looks like typing into a terminal rather than filling in a form. */}
+      <form onSubmit={handleSubmit} className="border-t border-rule bg-panel-raised px-4 py-3">
+        <div className="flex items-center gap-2">
+          <div className="readout-well flex flex-1 items-center gap-2 px-3 py-2 focus-within:border-copper-500">
+            <span aria-hidden className="select-none font-mono text-readout text-copper-500">
+              &gt;
+            </span>
             <input
               value={input}
               onChange={(event) => setInput(event.target.value.slice(0, MAX_MESSAGE_CHARS))}
               placeholder={
                 blocked
-                  ? 'Demo limit reached'
+                  ? 'allowance spent'
                   : backend === 'warming'
-                    ? 'Waking the tutor — the simulator works meanwhile…'
-                    : 'Ask about your circuit…'
+                    ? 'waking the tutor…'
+                    : 'ask about your circuit'
               }
               disabled={blocked || isSending}
-              aria-label="Message the AI tutor"
-              className="w-full rounded-xl border border-ink-700 bg-ink-950/70 px-4 py-2.5 pr-14 text-sm text-gray-200 outline-none transition-colors placeholder:text-gray-600 focus:border-glow-400/50 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Ask the tutor about your circuit"
+              className="w-full bg-transparent font-mono text-readout text-ink-primary outline-none
+                         placeholder:text-ink-faint disabled:cursor-not-allowed"
             />
             {input.length > MAX_MESSAGE_CHARS * 0.8 && (
-              <span className="quantum-notation absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-600">
+              <span className="font-mono text-[10px] text-ink-faint">
                 {input.length}/{MAX_MESSAGE_CHARS}
               </span>
             )}
@@ -434,25 +456,26 @@ export default function DemoTutor({ gates, numQubits }: DemoTutorProps) {
           <button
             type="submit"
             disabled={blocked || isSending || !input.trim()}
-            aria-label="Send message"
-            className="flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-glow-400 to-quantum-500 text-ink-950 outline-none transition-shadow hover:shadow-glow-sm focus-visible:ring-2 focus-visible:ring-glow-300 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:shadow-none"
+            aria-label="Send"
+            className="keycap h-[38px] w-[38px] border-copper-600 text-copper-200
+                       hover:border-copper-400 hover:bg-copper-900
+                       disabled:cursor-not-allowed disabled:border-rule-strong disabled:text-ink-faint"
           >
-            <Send className="h-4 w-4" />
+            <Send className="h-3.5 w-3.5" />
           </button>
         </div>
 
-        <p className="mt-2.5 text-[11px] leading-relaxed text-gray-600">
-          {limit} free messages per session, rate limited by IP. The full tutor runs
-          the agent loop with tools and persistent memory —{' '}
+        <p className="mt-2.5 text-[11px] leading-relaxed text-ink-tertiary">
+          {limit} messages per session, rate limited by IP.{' '}
           <a
             href={GITHUB_REPO_URL}
             target="_blank"
             rel="noreferrer noopener"
-            className="text-gray-500 underline underline-offset-2 hover:text-glow-300"
+            className="underline decoration-rule-strong underline-offset-2 hover:text-copper-300"
           >
-            run it locally
+            Run it locally
           </a>{' '}
-          with your own key.
+          for the full agent loop with tools and persistent memory.
         </p>
       </form>
     </div>
