@@ -1,25 +1,25 @@
 /**
- * Public top bar for the landing page.
+ * The top rail.
  *
  * Distinct from components/ui/Navbar, which is the signed-in application
- * chrome and calls useAuth — it can't render for a logged-out stranger.
+ * chrome and calls useAuth for a user it can assume exists.
  *
- * Starts transparent so the hero photograph runs edge to edge, then fades in
- * a frosted background once the page scrolls, which keeps the links legible
- * over the paler sections below.
+ * Starts transparent so the photograph runs edge to edge, then takes on a
+ * solid panel background once the page scrolls. 48px tall — a rail on a piece
+ * of equipment, not a 64px marketing header. The wordmark is the Hadamard
+ * keycap plus letterspaced mono: no gradient, no atom icon.
  */
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Atom, Github } from 'lucide-react';
 import { motion, useMotionValueEvent, useScroll } from 'framer-motion';
 
 import { GITHUB_REPO_URL } from '../../config/env';
 import { useAuth } from '../../hooks/useAuth';
 
 const SECTION_LINKS = [
-  { href: '#features', label: 'Features' },
-  { href: '#demo', label: 'Live Demo' },
+  { href: '#console', index: '01', label: 'Console' },
+  { href: '#how', index: '02', label: 'How it works' },
 ];
 
 export default function LandingNav() {
@@ -38,53 +38,68 @@ export default function LandingNav() {
   });
 
   return (
-    <motion.header
-      initial={{ opacity: 0, y: -12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className={`fixed inset-x-0 top-0 z-50 border-b transition-colors duration-300 ${
-        scrolled
-          ? 'border-ink-700/70 bg-ink-950/80 backdrop-blur-md'
-          : 'border-transparent bg-transparent'
+    <header
+      className={`fixed inset-x-0 top-0 z-50 border-b transition-colors duration-state ease-instrument ${
+        scrolled ? 'border-rule bg-void/92 backdrop-blur-sm' : 'border-transparent bg-transparent'
       }`}
     >
-      <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 lg:px-10">
-        <a href="#top" className="flex items-center gap-2.5 text-lg font-bold outline-none">
-          <Atom className="h-6 w-6 text-glow-400" />
-          <span className="text-gradient-quantum">QuantumIQ</span>
+      <nav className="mx-auto flex h-12 max-w-console items-center gap-6 px-4 sm:px-6 lg:px-8">
+        <a href="#top" className="flex flex-shrink-0 items-center gap-2.5">
+          <img src="/mark.svg" alt="" aria-hidden className="h-[18px] w-[18px]" />
+          <span className="font-mono text-[13px] font-medium uppercase tracking-[0.18em] text-ink-primary">
+            QuantumIQ
+          </span>
         </a>
 
-        <div className="hidden items-center gap-1 md:flex">
+        <div className="hidden flex-1 items-center gap-6 md:flex">
           {SECTION_LINKS.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-gray-400 outline-none hover:bg-white/5 hover:text-gray-100 focus-visible:ring-2 focus-visible:ring-glow-400/50"
+              className="group flex items-baseline gap-1.5 text-small text-ink-tertiary
+                         transition-colors duration-state ease-instrument hover:text-ink-primary"
             >
+              <span className="font-mono text-[10px] text-copper-600 transition-colors duration-state group-hover:text-copper-400">
+                {link.index}
+              </span>
               {link.label}
             </a>
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-5">
           <a
             href={GITHUB_REPO_URL}
             target="_blank"
             rel="noreferrer noopener"
-            aria-label="QuantumIQ on GitHub"
-            className="rounded-lg p-2.5 text-gray-400 outline-none hover:bg-white/5 hover:text-gray-100 focus-visible:ring-2 focus-visible:ring-glow-400/50"
+            className="hidden text-small text-ink-tertiary transition-colors duration-state
+                       ease-instrument hover:text-ink-primary sm:block"
           >
-            <Github className="h-[18px] w-[18px]" />
+            GitHub
           </a>
 
           <Link
             to={user ? '/dashboard' : '/login'}
-            className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-gray-200 outline-none hover:border-glow-400/40 hover:bg-white/[0.07] focus-visible:ring-2 focus-visible:ring-glow-400/50"
+            className="border-b border-rule-strong pb-0.5 text-small font-medium text-ink-secondary
+                       transition-colors duration-state ease-instrument hover:border-copper-400
+                       hover:text-copper-200"
           >
             {user ? 'Dashboard' : 'Sign in'}
           </Link>
         </div>
       </nav>
-    </motion.header>
+
+      {/* A hairline progress-free accent at the rail's left edge, present only
+          once the rail is solid — it reads as the instrument's power light
+          without being an animated dot. */}
+      <motion.span
+        aria-hidden
+        className="absolute bottom-[-1px] left-0 h-px bg-copper-600"
+        animate={{ width: scrolled ? 72 : 0 }}
+        transition={{ duration: 0.3, ease: EASE_OUT }}
+      />
+    </header>
   );
 }
+
+const EASE_OUT = [0.2, 0, 0, 1] as const;
