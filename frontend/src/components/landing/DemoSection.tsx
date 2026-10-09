@@ -1,91 +1,88 @@
 /**
- * The live demo.
+ * The console — the whole product, operable, at the top of the page.
  *
- * Two halves with very different cost profiles, and the UI says so rather
- * than hiding it:
+ * This section replaces both the old feature-card grid and the old demo
+ * section. The reasoning is in DESIGN.md §2: three cards describing the
+ * simulator were a worse version of the simulator sitting 200px below them,
+ * so the cards are gone and their job is done by four short annotations
+ * printed on the panels themselves.
  *
- *   - The simulator, Bloch sphere and measurement panel run entirely in the
- *     browser (src/lib/quantumSim.ts). Unlimited, instant, works with the
- *     backend asleep.
- *   - The tutor is a real model call, so it gets five messages per session
- *     and per-IP limits on top.
+ * The four panels are laid out as one faceplate with hairline seams — a
+ * `gap-px` grid over a `bg-rule` ground, so the gaps between panels *are* the
+ * 1px rules. Parts of an instrument butt together; they don't float apart with
+ * shadows between them.
  *
- * All four panels share one useDemoCircuit instance, which is why the tutor
- * can answer questions about the circuit the visitor just built.
+ * All four share one useDemoCircuit instance, which is what lets the tutor
+ * answer questions about the circuit the visitor just built.
+ *
+ * Order differs by breakpoint on purpose. On desktop the tutor sits in its own
+ * full-height column beside the readouts. Stacked on a phone it goes last:
+ * the readouts belong next to the circuit they describe, and a visitor
+ * scrolling a 375px screen should meet the sphere and the measurements before
+ * a chat composer.
  */
 
-import { Cpu, Infinity as InfinityIcon } from 'lucide-react';
+import { useMemo } from 'react';
 
 import DemoBlochSphere from '../demo/DemoBlochSphere';
 import DemoCircuitBuilder from '../demo/DemoCircuitBuilder';
 import DemoProbabilities from '../demo/DemoProbabilities';
 import DemoTutor from '../demo/DemoTutor';
-import Reveal from './Reveal';
 import { useDemoCircuit } from '../../hooks/useDemoCircuit';
+
+/** Below this vector length a qubit's reduced state is mixed, i.e. entangled. */
+const PURITY_THRESHOLD = 0.99;
 
 export default function DemoSection() {
   const circuit = useDemoCircuit();
 
+  // Which qubits are entangled right now, derived from the same Bloch
+  // coordinates the sphere draws. Passed to the diagram so entanglement shows
+  // up as a tie between wires the moment the state stops factorising —
+  // DESIGN.md §7: entanglement should be visible, not inferred.
+  const entangled = useMemo(
+    () =>
+      circuit.result.bloch_coords
+        .filter((c) => Math.hypot(c.x, c.y, c.z) < PURITY_THRESHOLD)
+        .map((c) => c.qubit),
+    [circuit.result],
+  );
+
   return (
-    <section
-      id="demo"
-      className="relative scroll-mt-16 border-t border-ink-700/40 bg-ink-950"
-    >
-      {/* A cyan wash bleeding down from the section's top edge, echoing the
-          hero's lighting so the page reads as one environment. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-96"
-        style={{
-          background:
-            'radial-gradient(70% 100% at 50% 0%, rgba(34, 211, 238, 0.07) 0%, transparent 70%)',
-        }}
-      />
-
-      <div className="relative mx-auto max-w-7xl px-6 py-24 lg:px-10 lg:py-28">
-        <Reveal className="mx-auto max-w-2xl text-center">
-          <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-glow-400/25 bg-glow-400/[0.07] px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-glow-200">
-            <Cpu className="h-3.5 w-3.5" />
-            Live demo
-          </span>
-
-          <h2 className="text-3xl font-bold tracking-tight text-gray-100 sm:text-4xl">
-            Build a circuit. <span className="text-gradient-quantum">Ask about it.</span>
+    <section id="console" className="scroll-mt-12 border-t border-rule bg-void">
+      <div className="mx-auto max-w-console px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
+        {/* A thin header rail rather than a centred headline and grey
+            subtitle. It reads as the instrument's own label strip. */}
+        <div className="mb-5 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-rule pb-3">
+          <h2 className="font-display text-h3 font-medium text-ink-primary">
+            The console
           </h2>
-          <p className="mt-4 text-base leading-relaxed text-gray-400">
-            Everything below is running for real. Place gates, scrub through the
-            circuit step by step, and watch the state evolve — then ask the tutor
-            what just happened.
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-tertiary">
+            Statevector · 4 qubits · 1024 shots · running in this tab
           </p>
-        </Reveal>
+        </div>
 
-        <Reveal delay={0.1} className="mt-14">
-          <div className="grid gap-5 lg:grid-cols-3">
-            <div className="lg:col-span-2 lg:col-start-1 lg:row-start-1">
-              <DemoCircuitBuilder circuit={circuit} />
+        <div className="overflow-hidden rounded-panel border border-rule-strong">
+          <div className="grid gap-px bg-rule lg:grid-cols-3">
+            <div className="min-w-0 bg-panel lg:col-span-2 lg:order-1">
+              <DemoCircuitBuilder circuit={circuit} entangled={entangled} />
             </div>
 
-            <div className="lg:col-start-1 lg:row-start-2">
+            {/* The tutor runs the full height of both rows: it is the one
+                panel whose content is prose and needs the vertical room. */}
+            <div className="order-last min-w-0 bg-panel lg:order-2 lg:row-span-2">
+              <DemoTutor gates={circuit.gates} numQubits={circuit.numQubits} />
+            </div>
+
+            <div className="min-w-0 bg-panel lg:order-3">
               <DemoBlochSphere coords={circuit.result.bloch_coords} />
             </div>
 
-            <div className="lg:col-start-2 lg:row-start-2">
+            <div className="min-w-0 bg-panel lg:order-4">
               <DemoProbabilities result={circuit.result} numQubits={circuit.numQubits} />
             </div>
-
-            <div className="lg:col-start-3 lg:row-span-2 lg:row-start-1">
-              <DemoTutor gates={circuit.gates} numQubits={circuit.numQubits} />
-            </div>
           </div>
-        </Reveal>
-
-        <Reveal delay={0.15}>
-          <p className="mt-6 flex items-center justify-center gap-2 text-center text-xs text-gray-600">
-            <InfinityIcon className="h-3.5 w-3.5 text-glow-500" />
-            Simulator, Bloch sphere and measurements are unlimited — they run in your
-            browser, not on a server.
-          </p>
-        </Reveal>
+        </div>
       </div>
     </section>
   );
