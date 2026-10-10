@@ -7,8 +7,9 @@
  * all share the same state without prop drilling.
  */
 
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, ReactNode } from 'react';
 import type { GateOperation, GateName, SimulationResult, StepSimulationResult } from '../types';
+import { GATE_CATALOG } from '../types';
 import { api } from '../services/api';
 
 interface CircuitContextType {
@@ -19,6 +20,16 @@ interface CircuitContextType {
   currentStep: number;
   isSimulating: boolean;
   isSteppingThrough: boolean;
+
+  /** Gate armed in the keypad, waiting for wires to be clicked. */
+  armedGate: GateName | null;
+  /** Wires already picked for the armed multi-qubit gate. */
+  pendingTargets: number[];
+  /** What to ask for next, or null when nothing is armed. */
+  placementHint: string | null;
+  armGate: (gate: GateName) => void;
+  cancelPlacement: () => void;
+  placeOnQubit: (qubit: number) => void;
 
   addGate: (gate: GateName, targets: number[]) => void;
   removeGate: (index: number) => void;
@@ -43,6 +54,8 @@ export function CircuitProvider({ children }: { children: ReactNode }) {
   const [isSimulating, setIsSimulating] = useState(false);
   const [isSteppingThrough, setIsSteppingThrough] = useState(false);
   const [playInterval, setPlayInterval] = useState<ReturnType<typeof setInterval> | null>(null);
+  const [armedGate, setArmedGate] = useState<GateName | null>(null);
+  const [pendingTargets, setPendingTargets] = useState<number[]>([]);
 
   const addGate = useCallback((gate: GateName, targets: number[]) => {
     setGates(prev => [...prev, { gate, targets, step: prev.length }]);
@@ -68,6 +81,82 @@ export function CircuitProvider({ children }: { children: ReactNode }) {
     setSimulationResult(null);
     setStepResult(null);
   }, []);
+
+  // ── Gate placement ──────────────────────────────────────────────────
+  //
+  // Click-to-place, replacing the window.prompt() chain this used to run
+  // ("Which qubit? (0-1)" three times for a Toffoli). Prompts cannot be
+  // styled, cannot be cancelled gracefully, block the main thread, and on a
+  // circuit builder they ask the user to type the answer to a question the
+  // diagram is already showing them. Arming a gate and clicking a wire is the
+  // same interaction the public console uses, so the two now behave
+  // identically.
+
+  const cancelPlacement = useCallback(() => {
+    setArmedGate(null);
+    setPendingTargets([]);
+  }, []);
+
+  const armGate = useCallback((gate: GateName) => {
+    setPendingTargets([]);
+    // Clicking the armed gate again disarms it.
+    setArmedGate((current) => (current === gate ? null : gate));
+  }, []);
+
+  const placeOnQubit = useCallback(
+    (qubit: number) => {
+      if (!armedGate) return;
+
+      const arity = GATE_CATALOG[armedGate].qubits;
+
+      // A gate can't target the same wire twice — ignore the click rather
+      // than resetting, so a misclick doesn't lose the qubits already chosen.
+      if (pendingTargets.includes(qubit)) return;
+
+      const targets = [...pendingTargets, qubit];
+
+      if (targets.length < arity) {
+        setPendingTargets(targets);
+        return;
+      }
+
+      setGates((prev) => [...prev, { gate: armedGate, targets, step: prev.length }]);
+      setSimulationResult(null);
+      setStepResult(null);
+      setArmedGate(null);
+      setPendingTargets([]);
+    },
+    [armedGate, pendingTargets],
+  );
+
+  // Escape cancels an in-progress placement — expected of any modal-ish
+  // interaction, and the only way out for keyboard users.
+  useEffect(() => {
+    if (!armedGate) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') cancelPlacement();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [armedGate, cancelPlacement]);
+
+  const placementHint = useMemo(() => {
+    if (!armedGate) return null;
+
+    const info = GATE_CATALOG[armedGate];
+    if (info.qubits === 1) return `Click a wire to place ${info.symbol}`;
+    if (info.qubits === 2) {
+      return pendingTargets.length === 0
+        ? `${info.symbol}: click the control qubit`
+        : `${info.symbol}: click the target qubit`;
+    }
+
+    if (pendingTargets.length === 0) return `${info.symbol}: click the first control qubit`;
+    if (pendingTargets.length === 1) return `${info.symbol}: click the second control qubit`;
+    return `${info.symbol}: click the target qubit`;
+  }, [armedGate, pendingTargets]);
 
   const runSimulation = useCallback(async () => {
     if (gates.length === 0) return;
@@ -127,6 +216,8 @@ export function CircuitProvider({ children }: { children: ReactNode }) {
     <CircuitContext.Provider value={{
       gates, numQubits, simulationResult, stepResult, currentStep,
       isSimulating, isSteppingThrough,
+      armedGate, pendingTargets, placementHint,
+      armGate, cancelPlacement, placeOnQubit,
       addGate, removeGate, clearCircuit, setNumQubits, loadCircuit,
       runSimulation, runStepThrough, setCurrentStep,
       playStepThrough, stopStepThrough,

@@ -1,68 +1,85 @@
 /**
- * Gate palette — the toolbar where users pick gates to drag onto the circuit.
+ * The Lab's gate panel.
  *
- * Uses react-dnd for drag-and-drop. Each gate is a draggable item that
- * carries its gate type as the drag payload. The CircuitGrid is the drop target.
+ * Thin wrapper over the shared GateKeypad: the keys, their family grouping and
+ * their pressed states are identical to the public console, because they are
+ * the same component. What the Lab adds is drag-and-drop — each key is also a
+ * react-dnd source, so a gate can be dragged straight onto a wire as well as
+ * armed and clicked.
+ *
+ * Shortcuts are hidden here: the Lab has a chat composer in the same view and
+ * no global key handler listening, so engraving shortcuts that don't fire
+ * would be a lie on the keycap.
  */
 
 import { useDrag } from 'react-dnd';
+
+import GateKeypad from './GateKeypad';
+import { useCircuit } from '../../hooks/useCircuit';
 import { GATE_CATALOG, type GateName } from '../../types';
 
-interface DraggableGateProps {
-  gateName: GateName;
-}
-
-function DraggableGate({ gateName }: DraggableGateProps) {
-  const gate = GATE_CATALOG[gateName];
-
-  const [{ isDragging }, dragRef] = useDrag(() => ({
-    type: 'GATE',
-    item: { gate: gateName },
-    collect: (monitor) => ({
-      isDragging: monitor.isDragging(),
+/**
+ * Makes the whole keypad draggable by delegating to a single drag source that
+ * reads which key the pointer went down on.
+ *
+ * One `useDrag` for the panel rather than one per key: hooks cannot be called
+ * in a loop whose length depends on a filter, and a single source that carries
+ * the armed gate is both simpler and matches how the keypad already works.
+ */
+function useKeypadDrag(armedGate: GateName | null) {
+  return useDrag(
+    () => ({
+      type: 'GATE',
+      item: armedGate ? { gate: armedGate } : null,
+      canDrag: () => armedGate !== null,
+      collect: (monitor) => ({ isDragging: monitor.isDragging() }),
     }),
-  }));
-
-  return (
-    <div
-      ref={dragRef}
-      className={`flex flex-col items-center gap-1 p-3 rounded-lg border cursor-grab active:cursor-grabbing transition-all ${
-        isDragging ? 'opacity-40 scale-95' : 'hover:scale-105'
-      }`}
-      style={{
-        borderColor: gate.color + '40',
-        backgroundColor: gate.color + '10',
-      }}
-      title={gate.description}
-    >
-      <div
-        className="w-10 h-10 rounded-lg flex items-center justify-center font-mono font-bold text-lg"
-        style={{ backgroundColor: gate.color + '30', color: gate.color }}
-      >
-        {gate.symbol}
-      </div>
-      <span className="text-xs text-gray-400">{gate.name}</span>
-      <span className="text-[10px] text-gray-600">
-        {gate.qubits === 1 ? '1 qubit' : `${gate.qubits} qubits`}
-      </span>
-    </div>
+    [armedGate],
   );
 }
 
 export default function GatePalette() {
-  const gateNames: GateName[] = ['h', 'x', 'y', 'z', 'cx', 'ccx', 's', 't'];
+  const { armedGate, armGate, placementHint, cancelPlacement, numQubits } = useCircuit();
+  const [{ isDragging }, dragRef] = useKeypadDrag(armedGate);
 
   return (
-    <div className="bg-[#12122a] rounded-xl border border-[#1a1a3e] p-4">
-      <h3 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wider">Gates</h3>
-      <div className="grid grid-cols-4 gap-2">
-        {gateNames.map(name => (
-          <DraggableGate key={name} gateName={name} />
-        ))}
+    <div className="flex flex-col">
+      <div className="nameplate">
+        <span className="nameplate-label">Gates</span>
+        {armedGate && (
+          <span className="font-mono text-readout-sm text-copper-300">
+            {GATE_CATALOG[armedGate].symbol} armed
+          </span>
+        )}
       </div>
-      <p className="text-[10px] text-gray-600 mt-3 text-center">
-        Drag gates onto qubit wires to build your circuit
-      </p>
+
+      <div ref={dragRef} className={`px-4 py-4 ${isDragging ? 'opacity-60' : ''}`}>
+        <GateKeypad
+          armedGate={armedGate}
+          onArm={armGate}
+          numQubits={numQubits}
+          showShortcuts={false}
+        />
+
+        <div className="mt-3.5 flex min-h-[1.875rem] items-center">
+          {placementHint ? (
+            <div className="flex w-full items-center justify-between gap-3 rounded-panel border border-copper-600 bg-copper-900 px-3 py-1.5">
+              <span className="font-mono text-readout-sm text-copper-100">{placementHint}</span>
+              <button
+                type="button"
+                onClick={cancelPlacement}
+                className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-tertiary hover:text-copper-200"
+              >
+                Esc
+              </button>
+            </div>
+          ) : (
+            <p className="font-mono text-[10px] leading-relaxed text-ink-faint">
+              Pick a gate, then click a wire — or drag it onto one
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

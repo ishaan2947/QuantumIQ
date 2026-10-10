@@ -1,163 +1,203 @@
 /**
- * CircuitGrid — the main circuit diagram where gates live on qubit wires.
+ * The Lab's circuit panel.
  *
- * Each qubit is a horizontal wire. Gates are rendered as blocks on the wire.
- * The grid is a drop target for gates dragged from the GatePalette.
+ * Renders the shared CircuitCanvas — identical geometry, wires, playhead and
+ * gate rendering to the public console — and adds the drop target for
+ * drag-and-drop placement.
  *
- * For multi-qubit gates (CNOT, Toffoli), we prompt the user for target qubits.
- * In a production version, you'd have a more sophisticated wire-to-wire
- * drag interaction, but the prompt approach keeps the implementation clean.
+ * The drop target is a single region covering the diagram rather than one per
+ * wire, because react-dnd's hooks cannot be called in a loop. The dropped
+ * qubit is derived from the pointer's Y offset within the canvas, which is
+ * exact: the grid is a fixed 52px row pitch, shared with the CSS through
+ * ROW_H. Dropping arms the gate and places its first target, so a dropped CNOT
+ * sets its control and then asks for the target by click — the same flow as
+ * clicking a key.
+ *
+ * This replaces the window.prompt() chain that used to collect target qubits
+ * ("Which qubit? (0-1)", three times over for a Toffoli).
  */
 
+import { useCallback, useRef, useState } from 'react';
 import { useDrop } from 'react-dnd';
+import { Eraser, Save } from 'lucide-react';
+import toast from 'react-hot-toast';
+
+import CircuitCanvas, { AXIS_H, ROW_H } from './CircuitCanvas';
 import { useCircuit } from '../../hooks/useCircuit';
-import { GATE_CATALOG, type GateName } from '../../types';
-import { Trash2 } from 'lucide-react';
+import { api } from '../../services/api';
+import type { GateName } from '../../types';
+
+const QUBIT_OPTIONS = [1, 2, 3, 4, 5];
 
 export default function CircuitGrid() {
-  const { gates, numQubits, setNumQubits, addGate, removeGate, clearCircuit } = useCircuit();
+  const {
+    gates,
+    numQubits,
+    setNumQubits,
+    removeGate,
+    clearCircuit,
+    armedGate,
+    pendingTargets,
+    armGate,
+    placeOnQubit,
+    stepResult,
+    currentStep,
+    simulationResult,
+  } = useCircuit();
 
-  const [{ isOver }, dropRef] = useDrop(() => ({
-    accept: 'GATE',
-    drop: (item: { gate: GateName }) => handleGateDrop(item.gate),
-    collect: (monitor) => ({
-      isOver: monitor.isOver(),
-    }),
-  }));
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [circuitName, setCircuitName] = useState('My Circuit');
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleGateDrop = (gateName: GateName) => {
-    const gateInfo = GATE_CATALOG[gateName];
-
-    if (gateInfo.qubits === 1) {
-      // Single-qubit: pick which qubit wire to place it on
-      const qubit = parseInt(prompt(`Which qubit? (0-${numQubits - 1})`) || '0');
-      if (qubit >= 0 && qubit < numQubits) {
-        addGate(gateName, [qubit]);
-      }
-    } else if (gateInfo.qubits === 2) {
-      // Two-qubit: need control and target
-      const control = parseInt(prompt(`Control qubit (0-${numQubits - 1}):`) || '0');
-      const target = parseInt(prompt(`Target qubit (0-${numQubits - 1}):`) || '1');
-      if (control !== target && control >= 0 && target >= 0 && control < numQubits && target < numQubits) {
-        addGate(gateName, [control, target]);
-      }
-    } else if (gateInfo.qubits === 3) {
-      // Three-qubit: two controls + target
-      const c1 = parseInt(prompt(`First control qubit (0-${numQubits - 1}):`) || '0');
-      const c2 = parseInt(prompt(`Second control qubit (0-${numQubits - 1}):`) || '1');
-      const target = parseInt(prompt(`Target qubit (0-${numQubits - 1}):`) || '2');
-      if (new Set([c1, c2, target]).size === 3 && [c1, c2, target].every(q => q >= 0 && q < numQubits)) {
-        addGate(gateName, [c1, c2, target]);
-      }
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const saved = await api.saveCircuit(circuitName, gates, numQubits);
+      toast.success(`Saved — share link: ${window.location.origin}/share/${saved.share_token}`);
+    } catch {
+      toast.error('Could not save the circuit');
+    } finally {
+      setIsSaving(false);
     }
   };
 
+  /** Which wire the pointer is over, from its position inside the canvas. */
+  const qubitAtClientY = useCallback(
+    (clientY: number): number | null => {
+      const bounds = canvasRef.current?.getBoundingClientRect();
+      if (!bounds) return null;
+
+      const qubit = Math.floor((clientY - bounds.top - AXIS_H) / ROW_H);
+      return qubit >= 0 && qubit < numQubits ? qubit : null;
+    },
+    [numQubits],
+  );
+
+  const [{ isOver }, dropRef] = useDrop(
+    () => ({
+      accept: 'GATE',
+      drop: (item: { gate: GateName }, monitor) => {
+        const offset = monitor.getClientOffset();
+        if (!offset) return;
+
+        const qubit = qubitAtClientY(offset.y);
+        if (qubit === null) return;
+
+        // Arm first, then place: a single-qubit gate lands immediately, and a
+        // multi-qubit one takes this wire as its first target and waits for
+        // the rest.
+        armGate(item.gate);
+        placeOnQubit(qubit);
+      },
+      collect: (monitor) => ({ isOver: monitor.isOver() }),
+    }),
+    [qubitAtClientY, armGate, placeOnQubit],
+  );
+
+  // Without step-through running, the whole circuit has been applied — so the
+  // playhead parks at the end rather than dimming every gate on the diagram.
+  const playhead = stepResult ? currentStep : gates.length;
+
+  // Which qubits are entangled, from the same Bloch coordinates the sphere
+  // draws, so the diagram ties the wires whose state no longer factorises.
+  const result = stepResult ? stepResult.steps[currentStep] : simulationResult;
+  const entangled = (result?.bloch_coords ?? [])
+    .filter((c) => Math.hypot(c.x, c.y, c.z) < 0.99)
+    .map((c) => c.qubit);
+
   return (
-    <div className="bg-[#12122a] rounded-xl border border-[#1a1a3e] p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Circuit</h3>
+    <div className="flex flex-col">
+      <div className="nameplate">
+        <span className="nameplate-label">Circuit</span>
+
         <div className="flex items-center gap-3">
-          <label className="text-xs text-gray-400">
-            Qubits:
-            <select
-              value={numQubits}
-              onChange={e => setNumQubits(parseInt(e.target.value))}
-              className="ml-2 bg-[#0a0a1a] border border-[#2a2a4a] rounded px-2 py-1 text-white text-xs"
-            >
-              {[1, 2, 3, 4, 5].map(n => (
-                <option key={n} value={n}>{n}</option>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-ink-faint">
+              Qubits
+            </span>
+            <div className="flex divide-x divide-rule overflow-hidden rounded-panel border border-rule-strong">
+              {QUBIT_OPTIONS.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setNumQubits(n)}
+                  aria-pressed={numQubits === n}
+                  className={`px-2 py-1 font-mono text-readout-sm transition-colors duration-state
+                              ease-instrument ${
+                                numQubits === n
+                                  ? 'bg-copper-400 text-void'
+                                  : 'bg-panel-raised text-ink-tertiary hover:bg-copper-900 hover:text-copper-200'
+                              }`}
+                >
+                  {n}
+                </button>
               ))}
-            </select>
-          </label>
+            </div>
+          </div>
+
           <button
+            type="button"
             onClick={clearCircuit}
-            className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1"
+            disabled={gates.length === 0}
+            className="btn-control hover:border-signal hover:bg-signal/10 hover:text-signal"
           >
-            <Trash2 className="w-3 h-3" /> Clear
+            <Eraser className="h-3 w-3" />
+            Clear
           </button>
         </div>
       </div>
 
-      {/* Circuit diagram */}
       <div
         ref={dropRef}
-        className={`relative min-h-[200px] rounded-lg border-2 border-dashed transition-colors p-4 ${
-          isOver ? 'border-quantum-400 bg-quantum-500/5' : 'border-[#2a2a4a]'
+        className={`px-4 py-4 transition-colors duration-state ease-instrument ${
+          isOver ? 'bg-copper-900/50' : ''
         }`}
       >
-        {/* Qubit wires */}
-        {Array.from({ length: numQubits }).map((_, qubitIdx) => (
-          <div key={qubitIdx} className="flex items-center h-14 relative">
-            {/* Qubit label */}
-            <span className="quantum-notation text-xs text-quantum-300 w-10 flex-shrink-0">
-              |q{qubitIdx}⟩
-            </span>
-
-            {/* Wire */}
-            <div className="flex-1 relative h-[2px] bg-[#2a2a4a] mx-2">
-              {/* Gates on this wire */}
-              {gates.map((gate, gateIdx) => {
-                if (!gate.targets.includes(qubitIdx)) return null;
-
-                const gateInfo = GATE_CATALOG[gate.gate];
-                const isControl = gate.targets.length > 1 && gate.targets.indexOf(qubitIdx) < gate.targets.length - 1;
-
-                return (
-                  <div
-                    key={gateIdx}
-                    className="absolute top-1/2 -translate-y-1/2 flex items-center"
-                    style={{ left: `${(gateIdx / Math.max(gates.length, 1)) * 85 + 5}%` }}
-                  >
-                    {isControl ? (
-                      // Control dot for multi-qubit gates
-                      <div
-                        className="w-4 h-4 rounded-full border-2"
-                        style={{ borderColor: gateInfo.color, backgroundColor: gateInfo.color }}
-                      />
-                    ) : (
-                      // Gate box
-                      <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center font-mono font-bold text-sm cursor-pointer hover:scale-110 transition-transform"
-                        style={{ backgroundColor: gateInfo.color + '30', color: gateInfo.color, border: `1px solid ${gateInfo.color}50` }}
-                        onClick={() => removeGate(gateIdx)}
-                        title={`${gateInfo.name} — click to remove`}
-                      >
-                        {gateInfo.symbol}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+        <div ref={canvasRef}>
+          <CircuitCanvas
+            gates={gates}
+            numQubits={numQubits}
+            currentStep={playhead}
+            armedGate={armedGate}
+            pendingTargets={pendingTargets}
+            entangled={entangled}
+            onPlaceOnQubit={placeOnQubit}
+            onRemoveGate={removeGate}
+            minColumns={8}
+          />
+        </div>
 
         {gates.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-sm pointer-events-none">
-            Drag gates here to build your circuit
-          </div>
+          <p className="mt-3 font-mono text-[10px] text-ink-faint">
+            Empty circuit — every qubit is in |0⟩
+          </p>
         )}
       </div>
 
-      {/* Gate list for easy reference */}
-      {gates.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1">
-          {gates.map((gate, i) => {
-            const info = GATE_CATALOG[gate.gate];
-            return (
-              <span
-                key={i}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs cursor-pointer hover:opacity-70"
-                style={{ backgroundColor: info.color + '20', color: info.color }}
-                onClick={() => removeGate(i)}
-                title="Click to remove"
-              >
-                {info.symbol}({gate.targets.join(',')})
-              </span>
-            );
-          })}
-        </div>
-      )}
+      {/* ── Save ───────────────────────────────────
+          An operation on the circuit, so it sits with the circuit. */}
+      <div className="mt-auto flex items-center gap-2 border-t border-rule px-4 py-3">
+        <label htmlFor="circuit-name" className="sr-only">
+          Circuit name
+        </label>
+        <input
+          id="circuit-name"
+          type="text"
+          value={circuitName}
+          onChange={(e) => setCircuitName(e.target.value)}
+          className="field max-w-[18rem] font-mono text-readout"
+          placeholder="Circuit name"
+        />
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={gates.length === 0 || isSaving}
+          className="btn-control py-2"
+        >
+          <Save className="h-3 w-3" />
+          {isSaving ? 'Saving' : 'Save'}
+        </button>
+      </div>
     </div>
   );
 }
