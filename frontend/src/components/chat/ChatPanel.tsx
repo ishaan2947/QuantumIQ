@@ -1,207 +1,232 @@
 /**
- * Chat panel — the user's interface to the agentic AI tutor.
+ * The Lab's tutor — the user's interface to the agentic backend.
  *
- * Sends the user's current circuit state along with every message so
- * the agent is always circuit-aware. Displays tool call indicators
- * so users can see the agent "thinking" and taking actions — this
- * transparency builds trust and helps users understand agency.
+ * Same notebook treatment as the public console's tutor: questions are `>`
+ * prompt lines, answers are prose against a copper rule. No avatars, no speech
+ * bubbles.
+ *
+ * What this one adds over the console's is the agent's visible work. It sends
+ * the current circuit with every message, and prints the tool calls the agent
+ * made before answering — reading the circuit, reading progress, writing a
+ * challenge. Those are the difference between an agent and a chat box, so they
+ * are printed as a run log rather than hidden behind a spinner.
  */
 
 import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { Send } from 'lucide-react';
+
 import { useCircuit } from '../../hooks/useCircuit';
 import { api } from '../../services/api';
 import type { ChatMessage } from '../../types';
-import { Send, Bot, User, Wrench, Lightbulb } from 'lucide-react';
+
+const GREETING: ChatMessage = {
+  role: 'assistant',
+  content:
+    "I can see your circuit as you build it, and I keep track of what you've practised. Build something and ask me about it, or ask me to set you a challenge.",
+};
 
 export default function ChatPanel() {
   const { gates, numQubits, loadCircuit } = useCircuit();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: 'assistant',
-      content: "Welcome to QuantumIQ! I'm your AI quantum computing tutor. I can see your circuit in real time and track your learning progress. Try building a circuit, then ask me about it — or ask me to teach you something new!",
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([GREETING]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const conversationRef = useRef<Array<{ role: string; content: string }>>([]);
 
+  // Keep the newest message in view without yanking the whole page around.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const list = listRef.current;
+    if (!list) return;
+    list.scrollTop = list.scrollHeight;
+  }, [messages, isLoading]);
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
-    const userMessage: ChatMessage = { role: 'user', content: input };
-    setMessages(prev => [...prev, userMessage]);
+    const question = input;
+    setMessages((prev) => [...prev, { role: 'user', content: question }]);
     setInput('');
     setIsLoading(true);
 
     try {
       // Send circuit state + conversation history for multi-turn context
       const response = await api.chat(
-        input,
+        question,
         gates.length > 0 ? gates : undefined,
         numQubits,
         conversationRef.current.length > 0 ? conversationRef.current : undefined,
       );
 
       // Track conversation history (keep last 20 turns to avoid token overflow)
-      conversationRef.current.push({ role: 'user', content: input });
+      conversationRef.current.push({ role: 'user', content: question });
       conversationRef.current.push({ role: 'assistant', content: response.response });
       if (conversationRef.current.length > 20) {
         conversationRef.current = conversationRef.current.slice(-20);
       }
 
-      const assistantMessage: ChatMessage = {
-        role: 'assistant',
-        content: response.response,
-        tool_calls: response.tool_calls || undefined,
-        challenge: (response.challenge as ChatMessage['challenge']) ?? null,
-      };
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: response.response,
+          tool_calls: response.tool_calls || undefined,
+          challenge: (response.challenge as ChatMessage['challenge']) ?? null,
+        },
+      ]);
 
-      setMessages(prev => [...prev, assistantMessage]);
-
-      // If the agent suggested a circuit, offer to load it
+      // If the agent suggested a circuit, load it
       if (response.suggested_circuit) {
         loadCircuit(response.suggested_circuit, numQubits);
       }
     } catch {
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: 'Sorry, I encountered an error. Please make sure the backend is running and your API key is configured.',
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content:
+            "I couldn't reach the tutor backend. Check that the API is running and that an OpenAI key is configured — the simulator and the sphere are unaffected either way.",
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="bg-[#12122a] rounded-xl border border-[#1a1a3e] flex flex-col h-full">
-      <div className="flex items-center gap-2 p-3 border-b border-[#1a1a3e]">
-        <Bot className="w-5 h-5 text-quantum-400" />
-        <h3 className="text-sm font-semibold text-gray-300">AI Tutor</h3>
-        <span className="text-[10px] text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full ml-auto">
-          Circuit-aware
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="nameplate">
+        <span className="nameplate-label">Tutor</span>
+        <span className="font-mono text-readout-sm text-ink-tertiary">
+          {gates.length > 0 ? `reading ${gates.length}-gate circuit` : 'circuit-aware'}
         </span>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
-              msg.role === 'user' ? 'bg-quantum-600/30' : 'bg-purple-600/30'
-            }`}>
-              {msg.role === 'user' ? (
-                <User className="w-4 h-4 text-quantum-300" />
-              ) : (
-                <Bot className="w-4 h-4 text-purple-300" />
-              )}
-            </div>
+      {/* ── Transcript ─────────────────────────────────────────────────── */}
+      <div ref={listRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4">
+        {/* A transcript grows from the bottom; a leading flex-1 spacer keeps the
+            greeting near the composer instead of marooned at the top of a tall
+            empty column, while leaving the container a normal scroller. */}
+        <div aria-hidden className="min-h-0 flex-1" />
 
-            <div className={`max-w-[85%] ${msg.role === 'user' ? 'text-right' : ''}`}>
-              {/* Tool call indicators — shows what the agent "did" */}
+        <div className="space-y-4">
+        {messages.map((msg, i) =>
+          msg.role === 'user' ? (
+            <p
+              key={i}
+              className="flex gap-2 font-mono text-readout leading-relaxed text-copper-200"
+            >
+              <span aria-hidden className="select-none text-copper-500">
+                &gt;
+              </span>
+              <span>{msg.content}</span>
+            </p>
+          ) : (
+            <div key={i} className="border-l border-copper-700 pl-3.5">
+              {/* The agent's run log: what it actually did before answering. */}
               {msg.tool_calls && msg.tool_calls.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-2">
+                <ul className="mb-2.5 space-y-0.5">
                   {msg.tool_calls.map((tc, j) => (
-                    <span
+                    <li
                       key={j}
-                      className="inline-flex items-center gap-1 text-[10px] bg-amber-400/10 text-amber-300 px-2 py-0.5 rounded-full"
+                      className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-faint"
                     >
-                      <Wrench className="w-3 h-3" />
+                      <span aria-hidden className="text-copper-600">
+                        ·{' '}
+                      </span>
                       {tc.tool.replace(/_/g, ' ')}
-                    </span>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
 
-              {/* Message content */}
-              <div className={`rounded-xl px-4 py-2.5 text-sm leading-relaxed ${
-                msg.role === 'user'
-                  ? 'bg-quantum-600/20 text-quantum-100'
-                  : 'bg-[#0a0a1a] text-gray-300'
-              }`}>
-                {msg.role === 'assistant' ? (
-                  <ReactMarkdown
-                    components={{
-                      p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                      strong: ({ children }) => <strong className="text-quantum-200 font-semibold">{children}</strong>,
-                      code: ({ children }) => (
-                        <code className="bg-[#1a1a3e] text-purple-300 px-1.5 py-0.5 rounded text-xs">{children}</code>
-                      ),
-                      ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-2">{children}</ul>,
-                      ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-2">{children}</ol>,
-                      h3: ({ children }) => <h3 className="text-quantum-300 font-semibold mb-1">{children}</h3>,
-                    }}
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
-                ) : (
-                  msg.content
-                )}
+              <div className="text-small leading-relaxed text-ink-secondary">
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                    strong: ({ children }) => (
+                      <strong className="font-medium text-ink-primary">{children}</strong>
+                    ),
+                    code: ({ children }) => (
+                      <code className="font-mono text-[0.9em] text-copper-200">{children}</code>
+                    ),
+                    ul: ({ children }) => (
+                      <ul className="mb-2 list-disc space-y-1 pl-4 last:mb-0">{children}</ul>
+                    ),
+                    ol: ({ children }) => (
+                      <ol className="mb-2 list-decimal space-y-1 pl-4 last:mb-0">{children}</ol>
+                    ),
+                    h3: ({ children }) => (
+                      <h3 className="mb-1 font-display text-small font-medium text-ink-primary">
+                        {children}
+                      </h3>
+                    ),
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
               </div>
 
-              {/* Challenge card */}
+              {/* A challenge the agent set, as a labelled card in the log. */}
               {msg.challenge && (
-                <div className="mt-2 bg-purple-600/10 border border-purple-500/30 rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Lightbulb className="w-4 h-4 text-purple-300" />
-                    <span className="text-sm font-medium text-purple-200">
-                      {msg.challenge.name}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-400">{msg.challenge.description}</p>
+                <div className="readout-well mt-2.5 px-3 py-2.5">
+                  <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-copper-300">
+                    Challenge
+                  </span>
+                  <p className="mt-1 text-small font-medium text-ink-primary">
+                    {msg.challenge.name}
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-ink-tertiary">
+                    {msg.challenge.description}
+                  </p>
                 </div>
               )}
             </div>
-          </div>
-        ))}
+          ),
+        )}
 
         {isLoading && (
-          <div className="flex gap-3">
-            <div className="w-7 h-7 rounded-full bg-purple-600/30 flex items-center justify-center">
-              <Bot className="w-4 h-4 text-purple-300" />
-            </div>
-            <div className="bg-[#0a0a1a] rounded-xl px-4 py-3">
-              <div className="flex gap-1">
-                <span className="w-2 h-2 bg-quantum-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 bg-quantum-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 bg-quantum-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
-            </div>
+          <div className="border-l border-copper-700 pl-3.5">
+            <span aria-hidden className="relative block h-px w-16 overflow-hidden bg-rule-strong">
+              <span className="absolute inset-y-0 w-4 animate-sweep bg-copper-400" />
+            </span>
+            <span className="sr-only">The tutor is working…</span>
           </div>
         )}
-
-        <div ref={messagesEndRef} />
+        </div>
       </div>
 
-      {/* Input */}
-      <div className="p-3 border-t border-[#1a1a3e]">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && sendMessage()}
-            placeholder="Ask about your circuit or a quantum concept..."
-            className="flex-1 bg-[#0a0a1a] border border-[#2a2a4a] rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-quantum-500"
-          />
+      {/* ── Composer ───────────────────────────────────────────────────── */}
+      <div className="border-t border-rule bg-panel-raised px-4 py-3">
+        <div className="flex items-center gap-2">
+          <div className="readout-well flex flex-1 items-center gap-2 px-3 py-2 focus-within:border-copper-500">
+            <span aria-hidden className="select-none font-mono text-readout text-copper-500">
+              &gt;
+            </span>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+              placeholder="ask about your circuit or a concept"
+              aria-label="Ask the tutor"
+              className="w-full bg-transparent font-mono text-readout text-ink-primary outline-none
+                         placeholder:text-ink-faint"
+            />
+          </div>
+
           <button
+            type="button"
             onClick={sendMessage}
             disabled={isLoading || !input.trim()}
-            className="bg-quantum-600 hover:bg-quantum-700 disabled:bg-gray-700 text-white p-2.5 rounded-lg transition-colors"
+            aria-label="Send"
+            className="keycap h-[38px] w-[38px] border-copper-600 text-copper-200
+                       hover:border-copper-400 hover:bg-copper-900
+                       disabled:cursor-not-allowed disabled:border-rule-strong disabled:text-ink-faint"
           >
-            <Send className="w-4 h-4" />
+            <Send className="h-3.5 w-3.5" />
           </button>
         </div>
-        {gates.length > 0 && (
-          <p className="text-[10px] text-gray-600 mt-1.5">
-            The AI can see your {gates.length}-gate circuit in real time
-          </p>
-        )}
       </div>
     </div>
   );
