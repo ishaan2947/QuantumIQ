@@ -1,8 +1,16 @@
+/**
+ * Sign in.
+ *
+ * Framed as the instrument's access panel: a single bordered faceplate with a
+ * nameplate, on the same warm black as everything else. No centred gradient
+ * wordmark over an atom icon.
+ */
+
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import { Atom } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+import { useAuth } from '../hooks/useAuth';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -18,55 +26,71 @@ export default function LoginPage() {
       await login(email, password);
       navigate('/dashboard');
     } catch {
-      toast.error('Invalid email or password');
+      toast.error('That email and password did not match');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0a1a] px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <Atom className="w-12 h-12 text-quantum-500 mx-auto mb-4" />
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-quantum-400 to-quantum-600 bg-clip-text text-transparent">
+    <div className="flex min-h-screen items-center justify-center bg-void px-4 py-12">
+      <div className="w-full max-w-[26rem]">
+        <Link to="/" className="mb-6 flex items-center gap-2.5">
+          <img src="/mark.svg" alt="" aria-hidden className="h-[18px] w-[18px]" />
+          <span className="font-mono text-[13px] font-medium uppercase tracking-[0.18em] text-ink-primary">
             QuantumIQ
-          </h1>
-          <p className="text-gray-400 mt-2">Sign in to your quantum lab</p>
-        </div>
+          </span>
+        </Link>
 
-        <form onSubmit={handleSubmit} className="bg-[#12122a] rounded-xl border border-[#1a1a3e] p-8 space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              className="w-full bg-[#0a0a1a] border border-[#2a2a4a] rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-quantum-500 focus:ring-1 focus:ring-quantum-500"
-              required
-            />
+        <form onSubmit={handleSubmit} className="panel">
+          <div className="nameplate">
+            <span className="nameplate-label">Sign in</span>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              className="w-full bg-[#0a0a1a] border border-[#2a2a4a] rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-quantum-500 focus:ring-1 focus:ring-quantum-500"
-              required
-            />
+
+          <div className="space-y-4 px-4 py-5">
+            <div>
+              <label className="field-label" htmlFor="email">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="field"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="field-label" htmlFor="password">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="field"
+                required
+              />
+            </div>
+
+            <button type="submit" disabled={isLoading} className="btn-primary w-full">
+              {isLoading ? 'Signing in…' : 'Sign in'}
+            </button>
           </div>
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-quantum-600 hover:bg-quantum-700 text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50"
-          >
-            {isLoading ? 'Signing in...' : 'Sign In'}
-          </button>
-          <p className="text-center text-sm text-gray-400">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-quantum-400 hover:text-quantum-300">
+
+          <p className="border-t border-rule px-4 py-3 text-small text-ink-tertiary">
+            No account?{' '}
+            <Link to="/register" className="text-copper-300 underline underline-offset-2">
               Create one
+            </Link>
+            {' · '}
+            <Link to="/" className="text-ink-tertiary underline underline-offset-2 hover:text-copper-300">
+              Try the console without signing in
             </Link>
           </p>
         </form>
