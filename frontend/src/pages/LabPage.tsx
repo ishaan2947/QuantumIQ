@@ -1,16 +1,23 @@
 /**
- * Quantum Lab — the main interactive workspace.
+ * The Lab — the signed-in workspace.
  *
- * Layout: Three-column design
- * - Left: Gate palette + simulation controls
- * - Center: Circuit grid + probability bars + Bloch sphere
- * - Right: AI chat panel
+ * Laid out as one instrument rather than six floating cards: nested grids with
+ * `gap-px` over a `bg-rule` ground, so every gap between panels *is* a 1px
+ * seam. Same construction as the public console, which is deliberate — a
+ * visitor who signs up should arrive at the machine they were just using, with
+ * more of it rather than a different one.
  *
- * The DndProvider wraps everything for drag-and-drop gate placement.
+ * Viewport-locked from lg up, where a workspace that scrolls as a whole is
+ * worse than panels that scroll individually. Below lg it reverts to normal
+ * document flow, because a locked 100vh layout on a phone is a trap.
+ *
+ * DndProvider wraps everything so gates can be dragged from the keypad onto a
+ * wire; clicking a key and then a wire does the same job without a pointer.
  */
 
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
+
 import GatePalette from '../components/circuit/GatePalette';
 import CircuitGrid from '../components/circuit/CircuitGrid';
 import SimulationControls from '../components/circuit/SimulationControls';
@@ -21,26 +28,42 @@ import ChatPanel from '../components/chat/ChatPanel';
 export default function LabPage() {
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="min-h-[calc(100vh-57px)] bg-[#0a0a1a] p-4">
-        <div className="max-w-[1600px] mx-auto grid grid-cols-12 gap-4 h-[calc(100vh-89px)]">
-          {/* Left column: Gates + Controls */}
-          <div className="col-span-2 space-y-4 overflow-y-auto">
-            <GatePalette />
-            <SimulationControls />
-          </div>
+      {/* 49px = the rail's 48px plus its 1px bottom border. */}
+      <div className="bg-void p-3 sm:p-4 lg:h-[calc(100vh-49px)]">
+        <div className="mx-auto h-full max-w-[100rem] overflow-hidden rounded-panel border border-rule-strong">
+          <div className="grid h-full gap-px bg-rule lg:grid-cols-[minmax(0,1fr)_23rem]">
+            {/* ── Work area ─────────────────────────────────────────────
+                Rows: controls, circuit, then the two readouts. The circuit
+                takes the slack so the diagram always has room. */}
+            <div className="grid min-h-0 min-w-0 gap-px bg-rule lg:grid-rows-[auto_auto_minmax(0,1fr)]">
+              <div className="grid min-w-0 gap-px bg-rule sm:grid-cols-[minmax(0,1fr)_16rem]">
+                <div className="min-w-0 bg-panel">
+                  <GatePalette />
+                </div>
+                <div className="bg-panel">
+                  <SimulationControls />
+                </div>
+              </div>
 
-          {/* Center column: Circuit + Visualizations */}
-          <div className="col-span-6 space-y-4 overflow-y-auto">
-            <CircuitGrid />
-            <div className="grid grid-cols-2 gap-4">
-              <BlochSphere />
-              <ProbabilityBars />
+              <div className="min-w-0 bg-panel">
+                <CircuitGrid />
+              </div>
+
+              <div className="grid min-h-0 min-w-0 gap-px bg-rule md:grid-cols-2">
+                <div className="min-h-0 min-w-0 overflow-y-auto bg-panel">
+                  <BlochSphere />
+                </div>
+                <div className="min-h-0 min-w-0 overflow-y-auto bg-panel">
+                  <ProbabilityBars />
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Right column: AI Chat */}
-          <div className="col-span-4">
-            <ChatPanel />
+            {/* ── Tutor ─────────────────────────────────────────────────
+                Full height of the instrument, scrolling internally. */}
+            <div className="min-h-0 min-w-0 bg-panel">
+              <ChatPanel />
+            </div>
           </div>
         </div>
       </div>

@@ -1,54 +1,88 @@
+/**
+ * The signed-in application rail.
+ *
+ * Deliberately the same 48px rail as the landing page's, with the same
+ * wordmark and the same numbered section links — signing in should feel like
+ * getting more of the instrument, not like arriving at a different product.
+ * The active route is marked with a copper underline on the rail's bottom edge
+ * rather than a filled tab, because a filled tab is the only thing on this
+ * page that would read as a button and not be one.
+ */
+
 import { Link, useLocation } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
+
 import { useAuth } from '../../hooks/useAuth';
-import { Atom, LayoutDashboard, FlaskConical, Trophy, LogOut } from 'lucide-react';
+
+const NAV_LINKS = [
+  { path: '/dashboard', index: '01', label: 'Dashboard' },
+  { path: '/lab', index: '02', label: 'Lab' },
+  { path: '/challenges', index: '03', label: 'Challenges' },
+];
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const location = useLocation();
 
-  const navLinks = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/lab', label: 'Quantum Lab', icon: FlaskConical },
-    { path: '/challenges', label: 'Challenges', icon: Trophy },
-  ];
-
   return (
-    <nav className="bg-[#0d0d20] border-b border-[#1a1a3e] px-6 py-3 flex items-center justify-between sticky top-0 z-50">
-      <Link to="/dashboard" className="flex items-center gap-2 text-xl font-bold">
-        <Atom className="w-7 h-7 text-quantum-500" />
-        <span className="bg-gradient-to-r from-quantum-400 to-quantum-600 bg-clip-text text-transparent">
-          QuantumIQ
-        </span>
-      </Link>
+    <header className="sticky top-0 z-50 border-b border-rule bg-void/92 backdrop-blur-sm">
+      <nav className="mx-auto flex h-12 max-w-[100rem] items-center gap-6 px-4 sm:px-6">
+        <Link to="/dashboard" className="flex flex-shrink-0 items-center gap-2.5">
+          <img src="/mark.svg" alt="" aria-hidden className="h-[18px] w-[18px]" />
+          <span className="font-mono text-[13px] font-medium uppercase tracking-[0.18em] text-ink-primary">
+            QuantumIQ
+          </span>
+        </Link>
 
-      <div className="flex items-center gap-1">
-        {navLinks.map(({ path, label, icon: Icon }) => (
-          <Link
-            key={path}
-            to={path}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              location.pathname === path
-                ? 'bg-quantum-600/20 text-quantum-300'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
-            }`}
+        <div className="flex items-center gap-1 overflow-x-auto sm:gap-5">
+          {NAV_LINKS.map(({ path, index, label }) => {
+            const active = location.pathname === path;
+            return (
+              <Link
+                key={path}
+                to={path}
+                aria-current={active ? 'page' : undefined}
+                className={`group relative flex items-baseline gap-1.5 whitespace-nowrap px-2 py-3.5
+                            text-small transition-colors duration-state ease-instrument sm:px-0 ${
+                              active
+                                ? 'text-ink-primary'
+                                : 'text-ink-tertiary hover:text-ink-primary'
+                            }`}
+              >
+                <span
+                  className={`font-mono text-[10px] transition-colors duration-state ${
+                    active ? 'text-copper-400' : 'text-copper-600 group-hover:text-copper-400'
+                  }`}
+                >
+                  {index}
+                </span>
+                {label}
+                {active && (
+                  <span
+                    aria-hidden
+                    className="absolute inset-x-0 bottom-[-1px] h-px bg-copper-400"
+                  />
+                )}
+              </Link>
+            );
+          })}
+        </div>
+
+        <div className="ml-auto flex items-center gap-4">
+          <span className="hidden font-mono text-readout-sm text-ink-tertiary sm:inline">
+            {user?.username}
+          </span>
+          <button
+            type="button"
+            onClick={logout}
+            aria-label="Sign out"
+            title="Sign out"
+            className="text-ink-tertiary transition-colors duration-state ease-instrument hover:text-signal"
           >
-            <Icon className="w-4 h-4" />
-            {label}
-          </Link>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-4">
-        <span className="text-sm text-gray-400">
-          {user?.username}
-        </span>
-        <button
-          onClick={logout}
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-red-400 transition-colors"
-        >
-          <LogOut className="w-4 h-4" />
-        </button>
-      </div>
-    </nav>
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+      </nav>
+    </header>
   );
 }
