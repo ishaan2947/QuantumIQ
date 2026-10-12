@@ -20,10 +20,21 @@ const LabPage = lazy(() => import('./pages/LabPage'));
 const ChallengesPage = lazy(() => import('./pages/ChallengesPage'));
 const Navbar = lazy(() => import('./components/ui/Navbar'));
 
+/**
+ * Shown while a code-split route downloads, and while a stored token is being
+ * verified. A sweep rather than pulsing text: the instrument is initialising,
+ * and a line that fills is a more honest loading signal than a word that fades
+ * in and out forever.
+ */
 function FullPageLoader() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0a1a]">
-      <div className="text-quantum-400 text-lg animate-pulse">Loading QuantumIQ...</div>
+    <div className="flex min-h-screen items-center justify-center bg-void">
+      <div className="flex flex-col items-center gap-3">
+        <span aria-hidden className="relative block h-px w-24 overflow-hidden bg-rule-strong">
+          <span className="absolute inset-y-0 w-6 animate-sweep bg-copper-400" />
+        </span>
+        <span className="font-mono text-micro uppercase text-ink-tertiary">Initialising</span>
+      </div>
     </div>
   );
 }
