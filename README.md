@@ -214,24 +214,26 @@ QuantumIQ/
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── bloch/            # Three.js Bloch sphere (blochScene.tsx is shared)
-│   │   │   ├── circuit/          # Drag-and-drop builder, controls, charts
+│   │   │   ├── circuit/          # Shared canvas, keypad, transport, readouts
 │   │   │   ├── chat/             # AI chat panel with markdown rendering
 │   │   │   ├── demo/             # Public demo: builder, Bloch, measurements, tutor
-│   │   │   ├── landing/          # Hero, feature cards, demo section, nav, footer
+│   │   │   ├── landing/          # Hero, console, how-it-works, rail, footer
 │   │   │   └── ui/               # Navbar
 │   │   ├── config/env.ts         # Build-time deployment values
 │   │   ├── hooks/                # useAuth, useCircuit, useDemoCircuit
 │   │   ├── lib/
 │   │   │   ├── quantumSim.ts     # Browser statevector simulator (demo)
 │   │   │   ├── demoSession.ts    # Client-side demo message accounting
-│   │   │   └── useParallax.ts    # Pointer parallax motion values
+│   │   │   └── gateStyles.ts     # Gate family -> appearance, in one place
 │   │   ├── pages/                # Landing, Dashboard, Lab, Challenges, Login, Register
 │   │   ├── services/
 │   │   │   ├── api.ts            # Axios client with JWT interceptor
 │   │   │   └── demoApi.ts        # Anonymous demo client (no auth interceptor)
 │   │   └── types/index.ts        # Shared TypeScript types + gate catalog
 │   ├── .env.example
+│   ├── tailwind.config.js        # Design tokens (see DESIGN.md)
 │   └── vercel.json               # SPA rewrite + asset caching
+├── DESIGN.md                     # Visual system: concepts, palette, type, motion
 ├── docs/DEPLOYMENT.md            # Vercel + Render free-tier guide
 ├── docker-compose.yml
 ├── render.yaml                   # Render blueprint for the backend
