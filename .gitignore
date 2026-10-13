@@ -35,3 +35,6 @@ pgdata/
 
 # Local notes
 LEARNING.md
+
+# Local Claude Code settings (machine-specific)
+.claude/settings.local.json
