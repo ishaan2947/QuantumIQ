@@ -14,7 +14,7 @@ import { GITHUB_REPO_URL } from '../../config/env';
 
 export default function Footer() {
   return (
-    <footer className="border-t border-rule bg-void">
+    <footer className="border-t border-rule bg-void-deep">
       <div className="mx-auto max-w-console px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-6 py-8 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-center gap-2.5">

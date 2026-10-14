@@ -49,7 +49,7 @@ export default function DemoSection() {
   );
 
   return (
-    <section id="console" className="scroll-mt-12 border-t border-rule bg-void">
+    <section id="console" className="scroll-mt-12 border-t border-rule bg-void-lift">
       <div className="mx-auto max-w-console px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
         {/* A thin header rail rather than a centred headline and grey
             subtitle. It reads as the instrument's own label strip. */}

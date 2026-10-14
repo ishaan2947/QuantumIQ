@@ -32,7 +32,7 @@ const DemoSection = lazy(() => import('../components/landing/DemoSection'));
  */
 function ConsoleFallback() {
   return (
-    <section id="console" className="scroll-mt-12 border-t border-rule bg-void">
+    <section id="console" className="scroll-mt-12 border-t border-rule bg-void-lift">
       <div className="mx-auto max-w-console px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
         <div className="mb-5 flex items-baseline justify-between border-b border-rule pb-3">
           <h2 className="font-display text-h3 font-medium text-ink-primary">The console</h2>

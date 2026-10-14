@@ -29,7 +29,7 @@ export default function LabPage() {
   return (
     <DndProvider backend={HTML5Backend}>
       {/* 49px = the rail's 48px plus its 1px bottom border. */}
-      <div className="bg-void p-3 sm:p-4 lg:h-[calc(100vh-49px)]">
+      <div className="bg-void-lift p-3 sm:p-4 lg:h-[calc(100vh-49px)]">
         <div className="mx-auto h-full max-w-[100rem] overflow-hidden rounded-panel border border-rule-strong">
           <div className="grid h-full gap-px bg-rule lg:grid-cols-[minmax(0,1fr)_23rem]">
             {/* ── Work area ─────────────────────────────────────────────
