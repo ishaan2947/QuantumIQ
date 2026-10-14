@@ -10,6 +10,12 @@
  * grew a `glow` ramp, three glow shadows and six decorative keyframes that
  * nothing could justify; that is the failure mode this comment exists to
  * prevent.
+ *
+ * On tonal range: the first pass of this palette spanned only 15 levels from
+ * the page background to the brightest surface, and every section shared one
+ * ground, so the whole interface read as a single flat black. The surfaces
+ * below are deliberately further apart. The fix for "it looks too dark" is
+ * range, not a second hue.
  */
 
 export default {
@@ -20,15 +26,22 @@ export default {
         // ── Ground: warm blacks and graphite ──────────────────────────
         // Warm, not neutral. The photograph's background is a warm black and
         // a neutral #0a0a0a next to it reads blue by comparison.
-        void: '#080706',
+        // The page ground, plus the two variants that give the page vertical
+        // rhythm: `lift` is the field an instrument is mounted on, `deep` is
+        // the ground beneath everything (the footer).
+        void: {
+          DEFAULT: '#080706',
+          lift: '#0C0B09',
+          deep: '#0A0908',
+        },
         panel: {
-          DEFAULT: '#100E0C', // faceplate ground
-          raised: '#17140F', // keycaps, inputs, header rows
-          sunk: '#0B0A08', // readout wells, circuit canvas, bar troughs
+          DEFAULT: '#16130F', // faceplate ground
+          raised: '#1F1A14', // keycaps, inputs, header rows
+          sunk: '#0A0908', // readout wells, circuit canvas, bar troughs
         },
         rule: {
-          DEFAULT: '#241F19', // the default 1px hairline
-          strong: '#352D24', // a visible seam between two parts
+          DEFAULT: '#2B251D', // the default 1px hairline
+          strong: '#3E342A', // a visible seam between two parts
         },
 
         // ── Accent: copper. The only accent in the system. ────────────
@@ -54,10 +67,12 @@ export default {
         ink: {
           primary: '#F0EAE1',
           secondary: '#ABA399',
-          tertiary: '#857D73',
+          // Lifted alongside the surfaces: at the old #857D73 the 11px
+          // nameplate labels fell to 4.26:1 on the raised panel, under AA.
+          tertiary: '#938B80',
           // Below AA by design — decorative marks only, never load-bearing
           // text. See DESIGN.md §3.
-          faint: '#5A544C',
+          faint: '#645D54',
         },
 
         // ── Signal: the refrigerator's red crown. ─────────────────────

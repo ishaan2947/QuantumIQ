@@ -80,11 +80,11 @@ kbd {
   height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #0b0a08;
+  background: #0a0908;
 }
 ::-webkit-scrollbar-thumb {
-  background: #241f19;
-  border: 2px solid #0b0a08;
+  background: #2b251d;
+  border: 2px solid #0a0908;
   border-radius: 0;
 }
 ::-webkit-scrollbar-thumb:hover {
@@ -92,7 +92,7 @@ kbd {
 }
 * {
   scrollbar-width: thin;
-  scrollbar-color: #241f19 #0b0a08;
+  scrollbar-color: #2b251d #0a0908;
 }
 
 @layer components {
@@ -146,7 +146,7 @@ kbd {
      A hairline that fades out at one end, for edges that would otherwise
      terminate abruptly against a section boundary. */
   .rule-fade-r {
-    background: linear-gradient(90deg, #352d24 0%, #352d24 60%, transparent 100%);
+    background: linear-gradient(90deg, #3e342a 0%, #3e342a 60%, transparent 100%);
   }
 
   /* ─── Buttons ──────────────────────────────────────────────────────────
@@ -229,12 +229,12 @@ input[type='range'].transport {
 
 input[type='range'].transport::-webkit-slider-runnable-track {
   height: 2px;
-  background: #241f19;
+  background: #2b251d;
   border-radius: 0;
 }
 input[type='range'].transport::-moz-range-track {
   height: 2px;
-  background: #241f19;
+  background: #2b251d;
   border-radius: 0;
 }
 
@@ -257,10 +257,10 @@ input[type='range'].transport::-moz-range-thumb {
 }
 
 input[type='range'].transport:disabled::-webkit-slider-thumb {
-  background: #352d24;
+  background: #3e342a;
 }
 input[type='range'].transport:disabled::-moz-range-thumb {
-  background: #352d24;
+  background: #3e342a;
 }
 
 /* ─── The photograph ─────────────────────────────────────────────────────
