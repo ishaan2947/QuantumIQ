@@ -19,7 +19,7 @@
 
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Line, OrbitControls, Text } from '@react-three/drei';
+import { Billboard, Line, OrbitControls, Text } from '@react-three/drei';
 import type { Line2 } from 'three-stdlib';
 import * as THREE from 'three';
 
@@ -58,6 +58,27 @@ export const BLOCH_CAMERA = { position: [2.3, 1.75, 2.3] as [number, number, num
 const LERP_RATE = 0.12;
 
 /**
+ * Two qubits can occupy the same point on (or in) the sphere, and when they do
+ * the drawing shows fewer vectors than the circuit has qubits:
+ *
+ *   - Three qubits all in |0⟩ draw three identical lines to the north pole,
+ *     and you see one.
+ *   - A maximally entangled state has every vector at length zero, so a
+ *     finished Bell pair or GHZ state draws nothing at all.
+ *
+ * Both are the physically honest picture and both are confusing. The fix is a
+ * stack of concentric markers at any shared point — innermost solid, the rest
+ * hollow rings — so the number of markers always equals the number of qubits
+ * there. Nothing is displaced and no position is faked; only the marker that
+ * annotates the position changes.
+ */
+/** Positions closer together than this are treated as the same point. */
+const COINCIDENT_EPS = 0.06;
+/** Base marker radius, and how much each additional qubit's ring grows by. */
+const MARKER_R = 0.045;
+const MARKER_STEP = 0.038;
+
+/**
  * Read once at module scope rather than through useReducedMotion, because
  * this is consumed inside useFrame where a hook subscription would be
  * re-evaluated 60 times a second.
@@ -92,6 +113,12 @@ interface BlochVectorProps {
   y: number;
   z: number;
   color: string;
+  /**
+   * How many qubits already occupy this point. 0 draws a solid tip; 1 and up
+   * draw successively larger hollow rings around it, so a shared point reports
+   * how many qubits are at it.
+   */
+  stack?: number;
 }
 
 /**
@@ -105,8 +132,8 @@ interface BlochVectorProps {
  * The rotation is the motion that explains the physics, so it lerps; under
  * prefers-reduced-motion it snaps instead.
  */
-export function BlochVector({ x, y, z, color }: BlochVectorProps) {
-  const meshRef = useRef<THREE.Mesh>(null);
+export function BlochVector({ x, y, z, color, stack = 0 }: BlochVectorProps) {
+  const groupRef = useRef<THREE.Group>(null);
   const lineRef = useRef<Line2>(null);
 
   const target = useMemo(() => new THREE.Vector3(x, z, -y), [x, y, z]);
@@ -116,8 +143,8 @@ export function BlochVector({ x, y, z, color }: BlochVectorProps) {
     current.current.lerp(target, prefersReducedMotion ? 1 : LERP_RATE);
     const { x: cx, y: cy, z: cz } = current.current;
 
-    if (meshRef.current) {
-      meshRef.current.position.set(cx, cy, cz);
+    if (groupRef.current) {
+      groupRef.current.position.set(cx, cy, cz);
     }
 
     // LineGeometry rebuilds its interleaved buffers on setPositions, so no
@@ -140,10 +167,27 @@ export function BlochVector({ x, y, z, color }: BlochVectorProps) {
         color={color}
         lineWidth={2}
       />
-      <mesh ref={meshRef} position={[x, z, -y]}>
-        <sphereGeometry args={[0.045, 16, 16]} />
-        <meshBasicMaterial color={color} />
-      </mesh>
+      <group ref={groupRef} position={[x, z, -y]}>
+        {stack === 0 ? (
+          <mesh>
+            <sphereGeometry args={[MARKER_R, 16, 16]} />
+            <meshBasicMaterial color={color} />
+          </mesh>
+        ) : (
+          <Billboard>
+            <mesh>
+              <ringGeometry
+                args={[
+                  MARKER_R + stack * MARKER_STEP - 0.011,
+                  MARKER_R + stack * MARKER_STEP,
+                  32,
+                ]}
+              />
+              <meshBasicMaterial color={color} side={THREE.DoubleSide} />
+            </mesh>
+          </Billboard>
+        )}
+      </group>
     </group>
   );
 }
@@ -197,20 +241,24 @@ export function SphereWireframe() {
 
       {/* Labels. The computational basis is brighter than the rest: |0⟩ and
           |1⟩ are what a measurement actually returns, and a learner locating
-          themselves on the sphere looks for the poles first. */}
-      <Text position={[0, 1.16, 0]} fontSize={0.13} color={C_LABEL_BASIS} anchorX="center">
+          themselves on the sphere looks for the poles first.
+
+          Set at 1.26 rather than tight to the surface so a full marker stack
+          (four concentric rings, reaching 0.159) sitting on a pole cannot
+          overlap that pole's label. */}
+      <Text position={[0, 1.26, 0]} fontSize={0.13} color={C_LABEL_BASIS} anchorX="center">
         |0&#10217;
       </Text>
-      <Text position={[0, -1.16, 0]} fontSize={0.13} color={C_LABEL_BASIS} anchorX="center">
+      <Text position={[0, -1.26, 0]} fontSize={0.13} color={C_LABEL_BASIS} anchorX="center">
         |1&#10217;
       </Text>
-      <Text position={[1.16, 0, 0]} fontSize={0.12} color={C_LABEL_SUPER} anchorX="center">
+      <Text position={[1.26, 0, 0]} fontSize={0.12} color={C_LABEL_SUPER} anchorX="center">
         |+&#10217;
       </Text>
-      <Text position={[-1.16, 0, 0]} fontSize={0.12} color={C_LABEL_SUPER} anchorX="center">
+      <Text position={[-1.26, 0, 0]} fontSize={0.12} color={C_LABEL_SUPER} anchorX="center">
         |&#8722;&#10217;
       </Text>
-      <Text position={[0, 0, 1.14]} fontSize={0.1} color={C_LABEL_SUPER} anchorX="center">
+      <Text position={[0, 0, 1.24]} fontSize={0.1} color={C_LABEL_SUPER} anchorX="center">
         |i&#10217;
       </Text>
     </group>
@@ -227,6 +275,23 @@ interface BlochSceneProps {
 
 /** Everything inside the <Canvas>. Callers own the canvas and its sizing. */
 export function BlochScene({ coords, autoRotate = false, colors = QUBIT_COLORS }: BlochSceneProps) {
+  // Which qubits share a point, and in what order. Computed from the Bloch
+  // coordinates rather than the animated positions, so the marker stack is
+  // stable during a transition instead of reshuffling mid-lerp.
+  const stacks = useMemo(() => {
+    const placed: THREE.Vector3[] = [];
+
+    return (coords ?? []).map((c) => {
+      const p = new THREE.Vector3(c.x, c.z, -c.y);
+      const stack = placed.reduce(
+        (n, q) => (q.distanceTo(p) < COINCIDENT_EPS ? n + 1 : n),
+        0,
+      );
+      placed.push(p);
+      return stack;
+    });
+  }, [coords]);
+
   return (
     <>
       {/* Flat materials throughout, so no lighting rig is needed beyond a
@@ -235,13 +300,14 @@ export function BlochScene({ coords, autoRotate = false, colors = QUBIT_COLORS }
 
       <SphereWireframe />
 
-      {coords?.map((coord) => (
+      {coords?.map((coord, i) => (
         <BlochVector
           key={coord.qubit}
           x={coord.x}
           y={coord.y}
           z={coord.z}
           color={colors[coord.qubit % colors.length]}
+          stack={stacks[i] ?? 0}
         />
       ))}
 
