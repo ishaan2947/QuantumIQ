@@ -166,11 +166,27 @@ gradient anywhere in the system.
 | Token | Hex | Role |
 |---|---|---|
 | `void` | `#080706` | Page background. Warm black, not neutral — the photograph's background. |
-| `panel` | `#100E0C` | Faceplate ground. Every panel sits on this. |
-| `panel-raised` | `#17140F` | Raised surface: keycaps, inputs, table header rows. |
-| `panel-sunk` | `#0B0A08` | Recessed surface: readout wells, the circuit canvas, bar troughs. |
-| `rule` | `#241F19` | Hairline divider. The default 1px border everywhere. |
-| `rule-strong` | `#352D24` | Panel outline, keycap edge — a visible seam between parts. |
+| `void-lift` | `#0C0B09` | The field an instrument is *mounted on*: the console section, the Lab. |
+| `void-deep` | `#0A0908` | The ground beneath everything — the footer. |
+| `panel` | `#16130F` | Faceplate ground. Every panel sits on this. |
+| `panel-raised` | `#1F1A14` | Raised surface: keycaps, inputs, nameplate strips. |
+| `panel-sunk` | `#0A0908` | Recessed surface: readout wells, the circuit canvas, bar troughs. |
+| `rule` | `#2B251D` | Hairline divider. The default 1px border, and the seam between panels. |
+| `rule-strong` | `#3E342A` | Panel outline, keycap edge — a visible seam between parts. |
+
+**On tonal range.** The first version of this ramp spanned 15 levels end to end
+(`#080706` to `#17140F`) and gave every section an identical ground, which
+made the whole interface read as one flat black no matter how carefully the
+accent was placed. The values above span 23 levels and the page now steps
+`void → void-lift → panel → panel-raised`, with `panel-sunk` recessed below
+all of it. Sections alternate — hero on `void`, the console on `void-lift`, how
+it works on `void`, the footer on `void-deep` — so the page has vertical
+rhythm and the instrument reads as mounted on a surface rather than floating in
+the same void as the prose.
+
+This is the answer to "it looks too dark": **range, not a second hue.** Adding a
+second accent would have fixed the symptom by dismantling the concept; the
+palette above is the same palette, further apart.
 
 ### Accent — copper and gold
 
@@ -195,12 +211,17 @@ gradient anywhere in the system.
 
 ### Text
 
-| Token | Hex | On `panel` | Role |
+| Token | Hex | On `panel-raised` | Role |
 |---|---|---|---|
-| `ink-primary` | `#F0EAE1` | 16.4:1 | Headings, values, body emphasis. |
-| `ink-secondary` | `#ABA399` | 7.9:1 | Body copy, captions. |
-| `ink-tertiary` | `#857D73` | 4.9:1 | Labels, units, metadata. Smallest type that still carries meaning. |
-| `ink-faint` | `#5A544C` | 2.4:1 | **Decorative only** — zero-value rows, disabled glyphs, never load-bearing text. |
+| `ink-primary` | `#F0EAE1` | 14.4:1 | Headings, values, body emphasis. |
+| `ink-secondary` | `#ABA399` | 6.9:1 | Body copy, captions. |
+| `ink-tertiary` | `#938B80` | 5.1:1 | Labels, units, metadata. Smallest type that still carries meaning. |
+| `ink-faint` | `#645D54` | 2.6:1 | **Decorative only** — zero-value rows, disabled glyphs, never load-bearing text. |
+
+`ink-tertiary` and `ink-faint` were lifted alongside the surfaces. At the
+previous `#857D73`, the 11px nameplate labels measured 4.26:1 against the
+raised panel — under AA — so raising the surfaces without raising the text
+would have quietly broken the smallest type in the system.
 
 ### Signal
 
@@ -208,10 +229,13 @@ gradient anywhere in the system.
 |---|---|---|
 | `signal` | `#C4382B` | The refrigerator's red crown. **Destructive actions only** — clear, delete, failure. Never decorative, never more than one instance on screen. |
 
-**Contrast.** Every text/background pair above meets WCAG AA at its size.
-`ink-faint` is the one token below AA and is restricted by rule to marks that
-carry no information a sighted-only reader would lose (a zero-probability row
-is also labelled `0.0%` in `ink-tertiary`).
+**Contrast.** Verified, not asserted: every rendered text node on the landing
+page (desktop and 375px), the sign-in page and the registration page was
+measured against its *effective* background with the large-text exemption
+applied, and all of it passes WCAG AA. `ink-faint` is the one token below AA
+and is restricted by rule to marks that carry no information a sighted-only
+reader would lose (a zero-probability row is also labelled `0.0%` in
+`ink-tertiary`).
 
 ---
 
@@ -292,6 +316,28 @@ takes a basis state somewhere a basis state cannot go, so it is the only
 filled key. Entangling gates are the only ones that need two wires, so they
 are the only wide keys — the key's shape tells you its arity before you read
 it.
+
+---
+
+## 6b. Coincident state markers
+
+A Bloch sphere drawn honestly can show **fewer vectors than the circuit has
+qubits**, in two ordinary cases:
+
+- Qubits in identical states draw identical vectors. Three qubits in `|0⟩` draw
+  three lines to the north pole, and the reader sees one.
+- A maximally entangled state has every reduced state at the centre, so a
+  finished Bell pair or GHZ state draws vectors of length zero — nothing.
+
+Both pictures are correct and both are confusing. The rule: **at any shared
+point, stack one marker per qubit** — the first solid, the rest as successively
+larger hollow rings in their own qubit's colour, billboarded so a ring reads as
+a ring from any orbit angle.
+
+Nothing is displaced and no position is faked; only the marker annotating the
+position changes. The count of markers always equals the count of qubits at
+that point, which is the fact the drawing was failing to carry. Pole labels sit
+at radius 1.26 so a full four-qubit stack cannot overlap them.
 
 ---
 
